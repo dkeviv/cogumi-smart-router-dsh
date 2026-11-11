@@ -1,0 +1,233 @@
+// src/router/standalone-router-client.ts
+// Standalone LLM Router using @huggingface/transformers in Node.js
+// Runs Qwen3-0.6B / Qwen3.5-0.8B locally via WASM (no Chrome extension needed)
+import { AutoTokenizer, env, Qwen2ForCausalLM } from '@huggingface/transformers';
+// Configure transformers.js for Node.js (WASM backend)
+env.allowLocalModels = false;
+env.allowRemoteModels = true;
+env.useBrowserCache = false;
+if (env.backends?.onnx?.wasm) {
+    env.backends.onnx.wasm.proxy = false;
+    env.backends.onnx.wasm.numThreads = 4;
+}
+export const ROUTER_MODEL_OPTIONS = [
+    {
+        modelId: 'dkeviv/Qwen3-0.6B-DQ-ONNX-bucket',
+        label: 'Qwen3 0.6B',
+        description: 'Fastest router · 370 MB · Best for quick decisions',
+        dtype: 'q4f16',
+        sizeBytes: 369722023,
+    },
+    {
+        modelId: 'dkeviv/Qwen3.5-0.8B-Text-ONNX-WebGPU-QDQ-bucket',
+        label: 'Qwen3.5 0.8B',
+        description: 'Higher quality routing · 490 MB · Better reasoning',
+        dtype: 'q4f16',
+        sizeBytes: 489343768,
+    },
+];
+const ROUTER_SYSTEM_PROMPT = `You are a model router. Select the BEST model for the request.
+
+Available models (JSON):
+{{MODELS_JSON}}
+
+Request:
+- Turn type: {{TURN_TYPE}}
+- Estimated input tokens: {{ESTIMATED_TOKENS}}
+- Required capabilities: reasoning={{REQ_REASONING}}, codeGen={{REQ_CODEGEN}}, toolUse={{REQ_TOOLUSE}}
+- Hardware: {{HARDWARE_PROBE}} ({{TOTAL_RAM}}GB RAM)
+- Session pinned: {{SESSION_PINNED}}
+
+Output ONLY valid JSON:
+{
+  "model_id": "provider/model-id",
+  "reason": "1-2 sentence explanation",
+  "confidence": 0.0-1.0,
+  "estimated_cost_usd": 0.0001
+}`;
+export class StandaloneRouterClient {
+    config;
+    telemetryStore;
+    model = null;
+    tokenizer = null;
+    currentModelId = '';
+    isInitialized = false;
+    initPromise = null;
+    constructor(config, telemetryStore) {
+        this.config = config;
+        this.telemetryStore = telemetryStore;
+    }
+    async initialize(modelId) {
+        if (this.initPromise)
+            return this.initPromise;
+        this.initPromise = this._initialize(modelId);
+        return this.initPromise;
+    }
+    async _initialize(modelId) {
+        const targetModelId = modelId || this.getDefaultRouterModelId();
+        if (this.isInitialized && this.currentModelId === targetModelId) {
+            return;
+        }
+        // Dispose previous model if switching
+        if (this.model) {
+            try {
+                await this.model.dispose?.();
+            }
+            catch { }
+            this.model = null;
+            this.tokenizer = null;
+        }
+        console.log(`[smart-router] Loading router model: ${targetModelId}`);
+        this.tokenizer = await AutoTokenizer.from_pretrained(targetModelId);
+        // Use Qwen2ForCausalLM for Qwen3 models (compatible architecture)
+        this.model = await Qwen2ForCausalLM.from_pretrained(targetModelId, {
+            dtype: 'q4f16',
+            device: 'wasm',
+            use_external_data_format: true,
+        });
+        // Warmup
+        try {
+            const warmupInputs = await this.tokenizer('Route this request.');
+            await this.model.generate({ ...warmupInputs, max_new_tokens: 1, do_sample: false });
+        }
+        catch (e) {
+            console.warn('[smart-router] Router model warmup failed:', e);
+        }
+        this.currentModelId = targetModelId;
+        this.isInitialized = true;
+        console.log(`[smart-router] Router model ready: ${targetModelId}`);
+    }
+    getDefaultRouterModelId() {
+        return ROUTER_MODEL_OPTIONS[0].modelId; // Qwen3 0.6B by default
+    }
+    async route(request, context) {
+        await this.initialize();
+        // Get filtered fleet models for the prompt
+        const fleetModels = context.filteredModels;
+        if (fleetModels.length === 0)
+            return null;
+        // Build prompt with available models
+        const modelsJson = JSON.stringify(fleetModels.map(m => ({
+            id: m.id,
+            provider: m.provider,
+            tier: m.tier,
+            contextWindow: m.contextWindow,
+            costPer1M: m.pricing.fallbackCostPer1M,
+            capabilities: m.capabilities,
+        })), null, 2);
+        const prompt = ROUTER_SYSTEM_PROMPT
+            .replace('{{MODELS_JSON}}', modelsJson)
+            .replace('{{TURN_TYPE}}', request.turnType)
+            .replace('{{ESTIMATED_TOKENS}}', request.estimatedInputTokens.toString())
+            .replace('{{REQ_REASONING}}', request.requiredCapabilities.reasoning.toFixed(2))
+            .replace('{{REQ_CODEGEN}}', request.requiredCapabilities.codeGen.toFixed(2))
+            .replace('{{REQ_TOOLUSE}}', request.requiredCapabilities.toolUse.toFixed(2))
+            .replace('{{HARDWARE_PROBE}}', context.hardware.probe)
+            .replace('{{TOTAL_RAM}}', context.hardware.totalMemoryGb.toFixed(1))
+            .replace('{{SESSION_PINNED}}', context.decisionSoFar?.sessionPinned ? 'yes' : 'no');
+        try {
+            const inputs = await this.tokenizer(prompt);
+            const output = await this.model.generate({
+                ...inputs,
+                max_new_tokens: 256,
+                do_sample: true,
+                temperature: 0.1,
+                top_p: 0.9,
+                repetition_penalty: 1.05,
+            });
+            const promptLength = inputs.input_ids.dims[1];
+            const generated = output.slice(null, [0, [promptLength, output.dims[1] - promptLength]]);
+            const decoded = this.tokenizer.batch_decode(generated, { skip_special_tokens: true })[0] || '';
+            return this.parseDecision(decoded, fleetModels, request, context);
+        }
+        catch (error) {
+            console.error('[smart-router] LLM routing failed:', error);
+            return null; // Fall through to deterministic pipeline
+        }
+    }
+    parseDecision(response, fleetModels, request, context) {
+        try {
+            // Extract JSON from response
+            const jsonMatch = response.match(/\{[\s\S]*\}/);
+            if (!jsonMatch)
+                return null;
+            const parsed = JSON.parse(jsonMatch[0]);
+            const selectedModelId = parsed.model_id;
+            const reason = parsed.reason || 'LLM router selection';
+            const confidence = Math.max(0, Math.min(1, parsed.confidence || 0.7));
+            const estimatedCost = parsed.estimated_cost_usd || 0;
+            // Find matching model in fleet
+            const [provider, ...modelParts] = selectedModelId.split('/');
+            const modelName = modelParts.join('/');
+            const matchedModel = fleetModels.find(m => m.provider === provider && m.id === modelName);
+            if (!matchedModel) {
+                console.warn(`[smart-router] Router selected unknown model: ${selectedModelId}`);
+                return null;
+            }
+            return {
+                provider: matchedModel.provider,
+                model: matchedModel.id,
+                tier: matchedModel.tier,
+                reasoning: `[LLM Router] ${reason}`,
+                estimatedCost: estimatedCost || matchedModel.pricing.fallbackCostPer1M * (request.estimatedInputTokens / 1_000_000),
+                estimatedLatencyMs: this.estimateLatency(matchedModel),
+                confidence,
+                fallbackChain: this.buildFallbackChain(matchedModel, fleetModels),
+                sessionPinned: false,
+                stage: 'llm-router',
+            };
+        }
+        catch (error) {
+            console.error('[smart-router] Failed to parse router decision:', error);
+            return null;
+        }
+    }
+    estimateLatency(model) {
+        const baseLatency = {
+            'zero-tier': 2000,
+            'economical-cloud': 300,
+            'frontier-cloud': 600,
+        };
+        return baseLatency[model.tier] || 500;
+    }
+    buildFallbackChain(selected, fleet) {
+        const sameTier = fleet.filter(m => m.tier === selected.tier && m.id !== selected.id);
+        const lowerTier = {
+            'frontier-cloud': ['economical-cloud', 'zero-tier'],
+            'economical-cloud': ['zero-tier'],
+            'zero-tier': [],
+        };
+        const chain = [...sameTier.slice(0, 2)];
+        for (const tier of lowerTier[selected.tier]) {
+            const models = fleet.filter(m => m.tier === tier);
+            chain.push(...models.slice(0, 1));
+        }
+        return chain.slice(0, 3);
+    }
+    async switchModel(modelId) {
+        await this.initialize(modelId);
+    }
+    getCurrentModel() {
+        return this.currentModelId;
+    }
+    getAvailableModels() {
+        return ROUTER_MODEL_OPTIONS;
+    }
+    isReady() {
+        return this.isInitialized;
+    }
+    async dispose() {
+        if (this.model) {
+            try {
+                await this.model.dispose?.();
+            }
+            catch { }
+            this.model = null;
+            this.tokenizer = null;
+            this.isInitialized = false;
+            this.initPromise = null;
+            console.log('[smart-router] Router model disposed');
+        }
+    }
+}
+//# sourceMappingURL=standalone-router-client.js.map

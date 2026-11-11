@@ -9,9 +9,11 @@ import { SystemInfoProvider } from '@deepseek-ai/dsh-home-paths';
 import { SmartRouterConfig, SmartRouterDeps, RoutingDecision } from './types';
 import { createSmartRouter, SmartRouter } from './router';
 import { createTelemetryStore, TelemetryStore } from './telemetry';
-import { registerSmartRouterCommand } from './commands';
+import { registerSmartRouterCommand, injectActiveModelIndicator } from './commands';
 import { probeHardware } from './hardware/probe';
 import { fleetManager } from './fleet';
+import { LLMRouterStage } from './router/llm-router-stage';
+import { StandaloneRouterClient } from './router/standalone-router-client';
 
 declare module '@deepseek-ai/cordis' {
   interface Context {
@@ -47,11 +49,17 @@ export function apply(ctx: Context, config: PluginConfig): void {
   const router = createSmartRouter(routerDeps);
   ctx.smartRouter = router;
 
+  // Create LLM Router Stage and Standalone Router Client
+  const llmRouterStage = new LLMRouterStage(config as SmartRouterConfig, telemetryStore);
+  const routerClient = new StandaloneRouterClient(config as SmartRouterConfig, telemetryStore);
+
   // Initialize router on startup
   ctx.on('ready', async () => {
     if (config.enabled) {
       try {
         await router.initialize();
+        await llmRouterStage.initialize();
+        await routerClient.initialize();
         console.log('[smart-router] Initialized successfully');
 
         // Register slash commands
@@ -59,6 +67,9 @@ export function apply(ctx: Context, config: PluginConfig): void {
           router,
           store: telemetryStore,
           ctx,
+          config: config as SmartRouterConfig,
+          llmRouterStage,
+          routerClient,
         });
 
         // Hook into model selection
@@ -76,6 +87,10 @@ export function apply(ctx: Context, config: PluginConfig): void {
   ctx.on('dispose', () => {
     telemetryStore.close();
     fleetManager.stopHealthChecks();
+    // Dispose router model
+    if (routerClient && typeof routerClient.dispose === 'function') {
+      routerClient.dispose();
+    }
   });
 }
 
@@ -212,6 +227,8 @@ export {
   createSmartRouter,
   probeHardware,
   fleetManager,
+  LLMRouterStage,
+  StandaloneRouterClient,
 };
 
 export {

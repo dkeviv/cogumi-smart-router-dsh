@@ -9,9 +9,11 @@ import {
   ModelProfile,
   Tier,
   RequiredCapabilities,
+  SmartRouterConfig,
 } from '../types';
 import { createLocalModelProfiles, probeLocalRuntimes } from '../hardware/local-runtime';
 import { AhoCorasick } from 'aho-corasick';
+import { LLMRouterStage } from './llm-router-stage';
 
 export interface PipelineStageConstructor {
   new (...args: any[]): PipelineStageHandler;
@@ -583,9 +585,12 @@ export function createPipelineStages(
   sessionId: string,
   getSessionPin: (sessionId: string) => Promise<any>,
   store: any,
+  config: SmartRouterConfig,
   embedder?: any,
   centroids?: any
 ): PipelineStageHandler[] {
+  const llmRouterStage = new LLMRouterStage(config, store);
+  
   return [
     new HardwareProbeStage(hardwareInfo),
     new LoopEscalationStage(sessionId, getSessionPin, store),
@@ -593,6 +598,9 @@ export function createPipelineStages(
     new ContextFitStage(fleet),
     new LowIntensityGateStage(fleet),
     new SessionPinStage(sessionId, getSessionPin, store),
+    // DEFAULT: LLM Router Stage (replaces deterministic triage as primary)
+    llmRouterStage,
+    // Fallback stages if LLM router fails
     new DeterministicTriageStage(),
     new LocalZeroTierStage(hardwareInfo, {}),
     new TriageCloudFallbackStage(),

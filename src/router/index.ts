@@ -76,6 +76,7 @@ export class SmartRouter {
       '', // sessionId - will be set per request
       async (sessionId) => this.deps.telemetryStore.getSessionPin(sessionId),
       this.deps.telemetryStore,
+      this.deps.config, // Pass config for LLM Router Stage
       null, // embedder - TODO
       null  // centroids - TODO
     );

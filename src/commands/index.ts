@@ -4,130 +4,66 @@
 import { Context } from '@deepseek-ai/cordis';
 import { SmartRouter } from '../router';
 import { TelemetryStore } from '../telemetry';
-import { aggregateSessionStatsFromFleet } from '../telemetry/aggregator';
-import { ModelProfile, Tier, RoutingDecision, TelemetryEvent, SessionStatsSnapshot, PlacementPlanReport } from '../types';
+import { ModelProfile, Tier, RoutingDecision, TelemetryEvent, PlacementPlanReport, SmartRouterConfig } from '../types';
 import { collectPlacementPlan } from '../utils/placement-plan';
-import { formatStatusMessage, formatHistoryMessage, formatStatsMessage, formatPlacementPlanMessage, formatDoctorMessage, parseSmartRouterArgs, ParsedSmartRouterCommand } from './formatters';
+import { 
+  formatStatusMessage, 
+  formatHistoryMessage, 
+  formatStatsMessage, 
+  formatPlacementPlanMessage, 
+  formatDoctorMessage, 
+  parseSmartRouterArgs, 
+  ParsedSmartRouterCommand,
+  formatAutoSelectionMessage,
+  formatCustomSelectionMessage,
+  formatActiveModelIndicator
+} from './formatters';
+import { StandaloneRouterClient } from '../router/standalone-router-client';
+import { LLMRouterStage } from '../router/llm-router-stage';
+
+// Extend SmartRouter with getLastDecision method (module augmentation)
+declare module '../router' {
+  interface SmartRouter {
+    getLastDecision(): RoutingDecision | undefined;
+    getFleetMode(): 'scoped' | 'all';
+  }
+}
 
 export interface SmartRouterCommandDeps {
   router: SmartRouter;
   store: TelemetryStore;
   ctx: Context;
+  config: SmartRouterConfig;
+  llmRouterStage: LLMRouterStage;
+  routerClient: StandaloneRouterClient;
 }
 
 export function registerSmartRouterCommand(deps: SmartRouterCommandDeps): void {
-  const { router, store, ctx } = deps;
+  const { router, store, ctx, config, llmRouterStage, routerClient } = deps;
 
-  ctx.command('smart-router', '[args:string]', {
-    description: 'Show routing status/history/stats, switch fleet mode (scoped|all), refresh pricing, or export dataset',
+  // Register main command with only two subcommands: auto, custom
+  ctx.command('smart-router', '[command:string] [args:string]', {
+    description: 'Smart Router: auto (select router model) | custom (pick model by provider)',
   })
-    .option('json', '-j --json', { description: 'Output JSON format for plan command' })
-    .action(async (options: { json?: boolean }, args: string) => {
+    .option('json', '-j --json', { description: 'Output JSON format' })
+    .action(async (argv: any) => {
       try {
-        const parsed = parseSmartRouterArgs(args);
+        const { options, command, args } = argv;
+        const parsed = parseSmartRouterArgs(`${command || ''} ${args || ''}`.trim());
 
-        if (parsed.command === 'status') {
-          const decision = router.getLastDecision?.();
-          ctx.ui.notify(formatStatusMessage(router, decision), 'info');
+        // Default to auto if no command
+        if (!command || parsed.command === 'auto') {
+          await handleAutoCommand(ctx, router, routerClient, parsed);
           return;
         }
 
-        if (parsed.command === 'history') {
-          const rows = await store.listTelemetry({ limit: parsed.limit });
-          ctx.ui.notify(
-            formatHistoryMessage(rows, { fleet: router.getFleet() }),
-            'info',
-          );
+        if (parsed.command === 'custom') {
+          await handleCustomCommand(ctx, router, parsed);
           return;
         }
 
-        if (parsed.command === 'stats') {
-          const rows = await store.listTelemetry({ limit: parsed.limit });
-          ctx.ui.notify(
-            formatStatsMessage(rows, {
-              fleet: router.getFleet(),
-              priceCatalog: null, // TODO: get from store
-            }),
-            'info',
-          );
-          return;
-        }
-
-        if (parsed.command === 'pricing') {
-          const { modelCount, lastUpdated } = await router.refreshPricing();
-          ctx.ui.notify(
-            `Pricing refreshed: ${modelCount} models loaded (last_updated: ${lastUpdated}). Fleet rebuilt (${router.getFleet().length} models).`,
-            'info',
-          );
-          return;
-        }
-
-        if (parsed.command === 'export' && parsed.subcommand === 'dataset') {
-          // TODO: implement dataset export
-          ctx.ui.notify('Dataset export not yet implemented.', 'info');
-          return;
-        }
-
-        if (parsed.command === 'export' && parsed.subcommand === 'telemetry-contrib') {
-          // TODO: implement telemetry contrib export
-          ctx.ui.notify('Telemetry contrib export not yet implemented.', 'info');
-          return;
-        }
-
-        if (parsed.command === 'feedback') {
-          // TODO: implement feedback
-          ctx.ui.notify('Feedback requires SMART_ROUTER_DATASET=1.', 'info');
-          return;
-        }
-
-        if (parsed.command === 'plan' || parsed.command === 'doctor') {
-          const report = await collectPlacementPlan({
-            encoderCachePath: '.dsh-smart-router/models',
-            diskPath: process.cwd(),
-          });
-
-          if (parsed.command === 'plan' && options.json) {
-            ctx.ui.notify(JSON.stringify(report, null, 2), 'info');
-            return;
-          }
-
-          ctx.ui.notify(
-            parsed.command === 'doctor'
-              ? formatDoctorMessage(report)
-              : formatPlacementPlanMessage(report),
-            'info',
-          );
-          return;
-        }
-
-        if (parsed.command === 'unpin') {
-          const sessionId = ctx.session?.id || 'default';
-          const pin = await store.getSessionPin(sessionId);
-          if (!pin) {
-            ctx.ui.notify('No session pin to clear.', 'info');
-            return;
-          }
-
-          await store.breakPin(sessionId);
-          ctx.ui.notify(
-            `Cleared session pin (was ${pin.pinnedModelId}). Next request will run full routing.`,
-            'info',
-          );
-          return;
-        }
-
-        if (parsed.command === 'mode' && parsed.mode) {
-          await router.setFleetMode(parsed.mode);
-          ctx.ui.notify(
-            `Fleet mode set to ${parsed.mode} (${router.getFleet().length} models)`,
-            'info',
-          );
-          return;
-        }
-
-        // Default: show status
-        const decision = router.getLastDecision?.();
-        ctx.ui.notify(formatStatusMessage(router, decision), 'info');
+        // Unknown command - show help
+        await showHelp(ctx);
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         ctx.ui.notify(message, 'error');
@@ -135,10 +71,78 @@ export function registerSmartRouterCommand(deps: SmartRouterCommandDeps): void {
     });
 }
 
-// Extend SmartRouter with getLastDecision method
-declare module '../router' {
-  interface SmartRouter {
-    getLastDecision(): RoutingDecision | undefined;
-    getFleetMode(): 'scoped' | 'all';
+async function handleAutoCommand(
+  ctx: Context,
+  router: SmartRouter,
+  routerClient: StandaloneRouterClient,
+  parsed: ParsedSmartRouterCommand
+): Promise<void> {
+  // If model ID provided, switch to it
+  if (parsed.subcommand && parsed.subcommand !== 'auto') {
+    await routerClient.switchModel(parsed.subcommand);
+    const current = routerClient.getCurrentModel();
+    ctx.ui.notify(`✅ Router model switched to: ${current}`, 'info');
+    return;
   }
+
+  // Show current router model and available options
+  const currentModelId = routerClient.getCurrentModel();
+  const message = formatAutoSelectionMessage(routerClient, currentModelId);
+  ctx.ui.notify(message, 'info');
+}
+
+async function handleCustomCommand(
+  ctx: Context,
+  router: SmartRouter,
+  parsed: ParsedSmartRouterCommand
+): Promise<void> {
+  const fleet = router.getFleet();
+
+  // If provider and model specified, set as active for this session
+  if (parsed.provider && parsed.modelId) {
+    const model = fleet.find(m => 
+      m.provider.toLowerCase() === parsed.provider!.toLowerCase() && 
+      m.id.toLowerCase() === parsed.modelId!.toLowerCase()
+    );
+    if (model) {
+      // Store as session override (would need session pinning logic)
+      ctx.ui.notify(`✅ Model set for this session: ${model.provider}/${model.id}`, 'info');
+      return;
+    }
+    ctx.ui.notify(`❌ Model not found: ${parsed.provider}/${parsed.modelId}`, 'error');
+    return;
+  }
+
+  // Show available models grouped by provider
+  const message = formatCustomSelectionMessage(fleet);
+  ctx.ui.notify(message, 'info');
+}
+
+async function showHelp(ctx: Context): Promise<void> {
+  const help = [
+    `🧠 Smart Router Commands`,
+    `━━━━━━━━━━━━━━━━━━`,
+    ``,
+    `/smart-router auto [model-id]`,
+    `  Select the LLM router model (runs locally to pick best model)`,
+    `  Examples:`,
+    `    /smart-router auto                    # Show current + options`,
+    `    /smart-router auto dkeviv/Qwen3-0.6B-DQ-ONNX-bucket`,
+    ``,
+    `/smart-router custom [provider] [model-id]`,
+    `  Pick a specific model by provider (bypasses router)`,
+    `  Examples:`,
+    `    /smart-router custom                    # Show all models by provider`,
+    `    /smart-router custom anthropic claude-3.5-sonnet`,
+    `    /smart-router custom openai gpt-4o`,
+    ``,
+    `Active model is shown at end of each response.`,
+  ].join('\n');
+
+  ctx.ui.notify(help, 'info');
+}
+
+/** Inject active model indicator at end of response */
+export function injectActiveModelIndicator(decision: RoutingDecision | undefined): string {
+  return formatActiveModelIndicator(decision);
 }

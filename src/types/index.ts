@@ -10,6 +10,7 @@ export type PipelineStage =
   | 'context-fit-gate'
   | 'low-intensity-gate'
   | 'session-pin'
+  | 'llm-router'
   | 'deterministic-triage'
   | 'local-zero-tier'
   | 'triage-cloud-fallback'

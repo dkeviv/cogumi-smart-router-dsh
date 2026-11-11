@@ -30,22 +30,22 @@
   "engines": {
     "node": ">=22.0.0"
   },
-  "peerDependencies": {},
   "dependencies": {
-    "sql.js": "^1.10.0",
-    "yaml": "^2.4.0",
+    "@huggingface/transformers": "^4.3.2",
     "aho-corasick": "^0.1.2",
-    "onnxruntime-node": "^1.17.0",
-    "tiktoken": "^1.0.12"
+    "onnxruntime-node": "^1.31.1",
+    "sql.js": "^1.10.0",
+    "tiktoken": "^1.0.12",
+    "yaml": "^2.4.0"
   },
   "devDependencies": {
-    "@types/sql.js": "^1.4.0",
     "@types/node": "^20.0.0",
-    "typescript": "^5.4.0",
-    "vitest": "^1.0.0",
-    "eslint": "^8.56.0",
+    "@types/sql.js": "^1.4.0",
     "@typescript-eslint/eslint-plugin": "^7.0.0",
-    "@typescript-eslint/parser": "^7.0.0"
+    "@typescript-eslint/parser": "^7.0.0",
+    "eslint": "^8.56.0",
+    "typescript": "^5.4.0",
+    "vitest": "^1.0.0"
   },
   "dsh": {
     "plugin": {
@@ -72,11 +72,11 @@
           },
           "economical-cloud": {
             "enabled": true,
-            "maxCostPer1M": 0.50
+            "maxCostPer1M": 0.5
           },
           "frontier-cloud": {
             "enabled": true,
-            "maxCostPer1M": 5.00
+            "maxCostPer1M": 5
           }
         }
       }
