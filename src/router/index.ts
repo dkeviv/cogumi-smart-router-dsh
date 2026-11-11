@@ -16,6 +16,8 @@ import {
   PipelineContext,
   HardwareInfo,
   TelemetryEvent,
+  ContextCompactionResult,
+  Message,
 } from '../types';
 
 import { fleetManager } from '../fleet';
@@ -33,22 +35,19 @@ export interface SmartRouterDeps {
   telemetryStore: TelemetryStore;
 }
 
-export interface ContextCompactionResult {
-  messages: any[];
-  wasCompacted: boolean;
-  disclaimer: string | null;
-  originalTokenCount: number;
-  compactedTokenCount: number;
-}
-
 export class SmartRouter {
   private pipeline: RouterPipeline;
   private hardwareInfo: HardwareInfo | null = null;
   private initialized = false;
   private lastDecision: RoutingDecision | null = null;
 
+  // Configurable: number of recent messages to keep intact (from DSH config or default)
+  private readonly keepRecentMessages: number;
+
   constructor(private deps: SmartRouterDeps) {
     this.pipeline = new RouterPipeline([]);
+    // Default to 20 recent messages (can be overridden via config)
+    this.keepRecentMessages = deps.config.keepRecentMessages ?? 20;
   }
 
   async initialize(): Promise<void> {
@@ -68,7 +67,7 @@ export class SmartRouter {
       };
     }
 
-    // Load fleet
+    // Load fleet (already filtered to >= 160k context window)
     await fleetManager.loadFleet({
       hardwareInfo: this.hardwareInfo,
       config: this.deps.config,
@@ -138,7 +137,9 @@ export class SmartRouter {
     }
 
     // Show pre-routing message
-    this.showPreRoutingMessage(request);
+    if (this.deps.ctx?.ui?.notify) {
+      this.deps.ctx.ui.notify(`🔄 Routing to best model...`, 'info');
+    }
 
     // Run pipeline
     let decision: RoutingDecision;
@@ -147,7 +148,7 @@ export class SmartRouter {
     } catch (error) {
       if (error instanceof RouterError) throw error;
       throw new RouterError(
-        'Routing pipeline failed. Use `/model <provider/model>` to manually select.',
+        'Routing pipeline failed. Use `/model <provider/model>` to manually select a model.',
         error instanceof Error ? error : undefined
       );
     }
@@ -158,7 +159,6 @@ export class SmartRouter {
     
     if (selectedModel && request.estimatedInputTokens > selectedModel.contextWindow) {
       compactionResult = await this.compactContext(request.messages, selectedModel.contextWindow);
-      // Add compaction info to decision for downstream use
       decision.contextCompaction = compactionResult;
     }
 
@@ -181,25 +181,14 @@ export class SmartRouter {
   }
 
   /**
-   * Show pre-routing notification to user
-   */
-  private showPreRoutingMessage(request: RoutingRequest): void {
-    // This would be sent via the DSH UI notification system
-    // For now, we'll attach it to the request for the hook to pick up
-    (request as any)._preRoutingMessage = `🔄 Routing request...`;
-    
-    // The hook in index.ts will pick this up and show via ctx.ui.notify
-    if (this.deps.ctx?.ui?.notify) {
-      this.deps.ctx.ui.notify(`🔄 Routing to best model...`, 'info');
-    }
-  }
-
-  /**
    * Smart context compaction when input exceeds model's context window
-   * Returns compacted messages with disclaimer
+   * 1. Always keep system messages
+   * 2. Keep recent N messages intact (configurable, default 20)
+   * 3. Summarize older messages into a system message block
+   * 4. Fallback truncation if still over limit
    */
   async compactContext(
-    messages: any[], 
+    messages: Message[], 
     targetContextWindow: number,
     reserveTokens: number = 2000 // Reserve for response
   ): Promise<ContextCompactionResult> {
@@ -216,19 +205,24 @@ export class SmartRouter {
       };
     }
 
-    // Strategy: Keep system message, recent messages, and summarize older ones
+    // Strategy:
+    // 1. Always keep system messages
+    // 2. Keep recent N messages intact (most important context)
+    // 3. Summarize older messages into a system message block
+    // 4. Fallback truncation if still over limit
+    
     const systemMessages = messages.filter(m => m.role === 'system');
     const userAssistantMessages = messages.filter(m => m.role === 'user' || m.role === 'assistant');
     
-    // Always keep the last N messages intact (recent context)
-    const keepRecent = 10; // Keep last 10 messages full
+    // Keep recent N messages intact (most important context)
+    const keepRecent = this.keepRecentMessages;
     const recentMessages = userAssistantMessages.slice(-keepRecent);
     const olderMessages = userAssistantMessages.slice(0, -keepRecent);
     
     let compactedMessages = [...systemMessages];
     let currentTokens = this.estimateTotalTokens(compactedMessages);
     
-    // Add recent messages first (most important)
+    // Add recent messages first (most important context)
     for (const msg of recentMessages) {
       const msgTokens = this.estimateMessageTokens(msg);
       if (currentTokens + msgTokens <= availableTokens) {
@@ -241,9 +235,9 @@ export class SmartRouter {
     if (olderMessages.length > 0 && currentTokens < availableTokens * 0.8) {
       const summary = await this.summarizeMessages(olderMessages);
       if (summary) {
-        const summaryMsg = {
-          role: 'system' as const,
-          content: `[Conversation Summary]\n${summary}\n[End Summary]`
+        const summaryMsg: Message = {
+          role: 'system',
+          content: `[Conversation Summary - ${olderMessages.length} messages condensed]\n${summary}\n[End Summary]`
         };
         const summaryTokens = this.estimateMessageTokens(summaryMsg);
         if (currentTokens + summaryTokens <= availableTokens) {
@@ -253,7 +247,7 @@ export class SmartRouter {
       }
     }
     
-    // If still over, truncate oldest recent messages
+    // If still over, truncate oldest recent messages (but keep system messages)
     while (currentTokens > availableTokens && compactedMessages.length > systemMessages.length + 2) {
       // Remove oldest non-system message
       const idx = compactedMessages.findIndex(m => m.role !== 'system');
@@ -265,7 +259,19 @@ export class SmartRouter {
       }
     }
     
-    const disclaimer = `⚠️ **Context Compacted**: Conversation was ${originalTokenCount} tokens but model only supports ${availableTokens} tokens. ${olderMessages.length > 0 ? `${olderMessages.length} older messages were summarized.` : 'Oldest messages were truncated.'} Some context may be lost.`;
+    const summarizedCount = olderMessages.length;
+    const truncatedCount = originalTokenCount > availableTokens && currentTokens > availableTokens 
+      ? Math.ceil((currentTokens - availableTokens) / (originalTokenCount / messages.length)) 
+      : 0;
+    
+    let disclaimer = `⚠️ **Context Compacted**: Conversation was ${originalTokenCount} tokens but model only supports ${availableTokens} tokens.`;
+    if (summarizedCount > 0) {
+      disclaimer += ` ${summarizedCount} older messages were summarized.`;
+    }
+    if (truncatedCount > 0) {
+      disclaimer += ` ${truncatedCount} oldest messages were truncated.`;
+    }
+    disclaimer += ` Some context may be lost.`;
     
     return {
       messages: compactedMessages,
@@ -277,42 +283,73 @@ export class SmartRouter {
   }
 
   /**
-   * Summarize older messages using a lightweight call
-   * In production, this could use a small local model or a cheap API call
+   * Summarize older messages using a lightweight approach.
+   * In production, this could call a small local model or a cheap API call.
+   * For now, uses extractive summarization.
    */
-  private async summarizeMessages(messages: any[]): Promise<string | null> {
-    // For now, create a simple extractive summary
-    // In production, this could call a small summarization model
-    const userMessages = messages.filter(m => m.role === 'user').map(m => m.content).join('\n');
-    const assistantMessages = messages.filter(m => m.role === 'assistant').map(m => m.content).join('\n');
-    
-    if (!userMessages && !assistantMessages) return null;
-    
-    const summaryParts = [];
-    if (userMessages) {
-      // Extract key topics from user messages (first 200 chars each)
-      const topics = userMessages.split('\n').slice(0, 5).map(t => t.substring(0, 150)).join('; ');
-      summaryParts.push(`User discussed: ${topics}`);
+  private async summarizeMessages(messages: Message[]): Promise<string | null> {
+    if (messages.length === 0) return null;
+
+    // Group by role
+    const userMessages = messages.filter(m => m.role === 'user').map(m => m.content);
+    const assistantMessages = messages.filter(m => m.role === 'assistant').map(m => m.content);
+
+    if (userMessages.length === 0 && assistantMessages.length === 0) return null;
+
+    // Use extractive summarization - extract key sentences
+    // In production, this could call a summarization model or API
+    const summaryParts: string[] = [];
+
+    if (userMessages.length > 0) {
+      // Extract key topics from user messages
+      const userText = userMessages.join('\n');
+      const keyPoints = this.extractKeyPoints(userText, 5);
+      if (keyPoints.length > 0) {
+        summaryParts.push(`User topics: ${keyPoints.join('; ')}`);
+      }
     }
-    if (assistantMessages) {
-      const topics = assistantMessages.split('\n').slice(0, 3).map(t => t.substring(0, 150)).join('; ');
-      summaryParts.push(`Assistant covered: ${topics}`);
+
+    if (assistantMessages.length > 0) {
+      // Extract key points from assistant responses
+      const assistantText = assistantMessages.join('\n');
+      const keyPoints = this.extractKeyPoints(assistantText, 3);
+      if (keyPoints.length > 0) {
+        summaryParts.push(`Assistant covered: ${keyPoints.join('; ')}`);
+      }
     }
+
+    return summaryParts.join('\n') || null;
+  }
+
+  /**
+   * Extract key points from text using simple extractive summarization
+   */
+  private extractKeyPoints(text: string, maxPoints: number): string[] {
+    // Split into sentences
+    const sentences = text.split(/[.!?]+/).map(s => s.trim()).filter(s => s.length > 20);
     
-    return summaryParts.join('\n');
+    // Score sentences by length and position (first/last sentences often more important)
+    const scored = sentences.map((sentence, index) => ({
+      sentence,
+      score: sentence.length + (index < 3 ? 10 : 0) + (index >= sentences.length - 2 ? 5 : 0)
+    }));
+
+    // Sort by score and take top N
+    scored.sort((a, b) => b.score - a.score);
+    return scored.slice(0, maxPoints).map(s => s.sentence);
   }
 
   /**
    * Estimate total tokens in messages
    */
-  private estimateTotalTokens(messages: any[]): number {
+  private estimateTotalTokens(messages: Message[]): number {
     return messages.reduce((sum, m) => sum + this.estimateMessageTokens(m), 0);
   }
 
   /**
    * Estimate tokens in a single message (rough: 4 chars = 1 token)
    */
-  private estimateMessageTokens(message: any): number {
+  private estimateMessageTokens(message: Message): number {
     const content = typeof message.content === 'string' ? message.content : JSON.stringify(message.content);
     return Math.ceil(content.length / 4) + 10; // +10 for role/overhead
   }

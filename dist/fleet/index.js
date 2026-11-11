@@ -7,6 +7,8 @@ import { fileURLToPath } from 'node:url';
 import * as yaml from 'yaml';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
+// Minimum context window for intelligent routing (160k tokens)
+const MIN_CONTEXT_WINDOW = 160_000;
 function createFleetManager() {
     let fleet = [];
     let healthCheckInterval = null;
@@ -33,8 +35,10 @@ function createFleetManager() {
                 const apiModels = mapRegistryModels(allModels, enabledModels, routerConfig);
                 models.push(...apiModels);
             }
+            // Filter out models with context window < 160k (minimum for intelligent routing)
+            let filteredModels = models.filter((m) => m.contextWindow >= MIN_CONTEXT_WINDOW);
             // Deduplicate by ID (prefer local over cloud for same ID)
-            fleet = deduplicateModels(models);
+            fleet = deduplicateModels(filteredModels);
             // Start health checks
             this.startHealthChecks();
         },
@@ -81,7 +85,7 @@ function loadStaticModels(modelsPath) {
             contextWindow: m.contextWindow || 8192,
             maxOutputTokens: m.maxOutputTokens || 4096,
             reasoningEfforts: m.reasoningEfforts,
-        }));
+        })).filter((m) => m.contextWindow >= MIN_CONTEXT_WINDOW);
     }
     catch {
         return [];
@@ -106,7 +110,6 @@ function mapRegistryModels(registryModels, enabledModels, routerConfig) {
     return models;
 }
 function matchModelPattern(modelId, pattern) {
-    // Simple glob-like matching
     if (pattern === '*')
         return true;
     if (pattern.endsWith('*')) {
@@ -131,7 +134,6 @@ function deduplicateModels(models) {
     return Array.from(seen.values());
 }
 async function checkModelHealth(model) {
-    // For local models, check if runtime is still available
     if (model.tier === 'zero-tier' && model.endpoint) {
         try {
             const controller = new AbortController();
@@ -152,7 +154,6 @@ async function checkModelHealth(model) {
             model.health.errorCount += 1;
         }
     }
-    // For cloud models, health is checked during actual requests
 }
 export const fleetManager = createFleetManager();
 export default fleetManager;

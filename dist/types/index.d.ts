@@ -139,6 +139,7 @@ export interface SmartRouterConfig {
             maxCostPer1M?: number;
         };
     };
+    keepRecentMessages?: number;
 }
 export interface SmartRouterDeps {
     ctx: any;

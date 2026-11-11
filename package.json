@@ -89,7 +89,8 @@
             "enabled": true,
             "maxCostPer1M": 5
           }
-        }
+        },
+        "keepRecentMessages": 20
       }
     }
   }

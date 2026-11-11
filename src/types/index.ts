@@ -171,6 +171,8 @@ export interface SmartRouterConfig {
       maxCostPer1M?: number;
     };
   };
+  // Number of recent messages to keep intact during context compaction (default: 20)
+  keepRecentMessages?: number;
 }
 
 export interface SmartRouterDeps {

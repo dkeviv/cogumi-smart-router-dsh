@@ -16,6 +16,9 @@ import * as yaml from 'yaml';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
+// Minimum context window for intelligent routing (160k tokens)
+const MIN_CONTEXT_WINDOW = 160_000;
+
 export interface FleetConfig {
   modelsPath?: string;
   hardwareInfo: HardwareInfo;
@@ -66,8 +69,11 @@ function createFleetManager(): FleetManager {
         models.push(...apiModels);
       }
 
+      // Filter out models with context window < 160k (minimum for intelligent routing)
+      let filteredModels = models.filter((m: ModelProfile) => m.contextWindow >= MIN_CONTEXT_WINDOW);
+
       // Deduplicate by ID (prefer local over cloud for same ID)
-      fleet = deduplicateModels(models);
+      fleet = deduplicateModels(filteredModels);
 
       // Start health checks
       this.startHealthChecks();
@@ -122,7 +128,7 @@ function loadStaticModels(modelsPath: string): ModelProfile[] {
       contextWindow: m.contextWindow || 8192,
       maxOutputTokens: m.maxOutputTokens || 4096,
       reasoningEfforts: m.reasoningEfforts,
-    }));
+    })).filter((m: ModelProfile) => m.contextWindow >= MIN_CONTEXT_WINDOW);
   } catch {
     return [];
   }
@@ -155,7 +161,6 @@ function mapRegistryModels(
 }
 
 function matchModelPattern(modelId: string, pattern: string): boolean {
-  // Simple glob-like matching
   if (pattern === '*') return true;
   if (pattern.endsWith('*')) {
     return modelId.startsWith(pattern.slice(0, -1));
@@ -182,7 +187,6 @@ function deduplicateModels(models: ModelProfile[]): ModelProfile[] {
 }
 
 async function checkModelHealth(model: ModelProfile): Promise<void> {
-  // For local models, check if runtime is still available
   if (model.tier === 'zero-tier' && model.endpoint) {
     try {
       const controller = new AbortController();
@@ -203,7 +207,6 @@ async function checkModelHealth(model: ModelProfile): Promise<void> {
       model.health.errorCount += 1;
     }
   }
-  // For cloud models, health is checked during actual requests
 }
 
 export const fleetManager = createFleetManager();
