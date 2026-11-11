@@ -1,7 +1,7 @@
 {
   "name": "@dkeviv/dsh-smart-router",
   "version": "0.1.0",
-  "description": "Smart router plugin for DeepSeek Harness - routes requests to optimal LLM models",
+  "description": "Smart router plugin for DeepSeek Harness (DSH) - intelligently routes LLM requests to optimal models using a local LLM router",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -20,13 +20,23 @@
   },
   "keywords": [
     "dsh",
+    "deepseek-harness",
     "smart-router",
     "llm",
     "routing",
-    "cordis"
+    "cordis",
+    "plugin"
   ],
   "author": "dkeviv",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/dkeviv/smart-router-dsh.git"
+  },
+  "bugs": {
+    "url": "https://github.com/dkeviv/smart-router-dsh/issues"
+  },
+  "homepage": "https://github.com/dkeviv/smart-router-dsh#readme",
   "engines": {
     "node": ">=22.0.0"
   },
