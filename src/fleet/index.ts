@@ -146,13 +146,6 @@ function mapRegistryModels(
 ): ModelProfile[] {
   let models = [...registryModels];
 
-  // Filter by scoped mode
-  if (routerConfig?.defaultMode === 'scoped' && enabledModels && enabledModels.length > 0) {
-    models = models.filter((m) =>
-      enabledModels.some((pattern) => matchModelPattern(m.id, pattern))
-    );
-  }
-
   // Filter by enabled tiers
   if (routerConfig?.tiers) {
     models = models.filter((m) => routerConfig.tiers[m.tier]?.enabled !== false);

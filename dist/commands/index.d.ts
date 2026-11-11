@@ -7,7 +7,6 @@ import { LLMRouterStage } from '../router/llm-router-stage';
 declare module '../router' {
     interface SmartRouter {
         getLastDecision(): RoutingDecision | undefined;
-        getFleetMode(): 'scoped' | 'all';
     }
 }
 export interface SmartRouterCommandDeps {

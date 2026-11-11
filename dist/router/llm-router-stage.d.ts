@@ -10,9 +10,8 @@ export declare class LLMRouterStage implements PipelineStageHandler {
     setEnabled(enabled: boolean): void;
     isEnabled(): boolean;
     initialize(): Promise<void>;
-    execute(context: PipelineContext): Promise<RoutingDecision | null>;
+    execute(context: PipelineContext): Promise<RoutingDecision>;
     getRouterClient(): StandaloneRouterClient | null;
     switchRouterModel(modelId: string): Promise<void>;
-    getAvailableRouterModels(): import("./standalone-router-client").RouterModelConfig[];
 }
 //# sourceMappingURL=llm-router-stage.d.ts.map

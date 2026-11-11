@@ -3,13 +3,13 @@
 import { fleetManager } from '../fleet';
 import { probeHardware } from '../hardware/probe';
 import { createPipelineStages, RouterPipeline } from './pipeline';
+import { RouterError } from './standalone-router-client';
 export class SmartRouter {
     deps;
     pipeline;
     hardwareInfo = null;
     initialized = false;
     lastDecision = null;
-    fleetMode = 'scoped';
     constructor(deps) {
         this.deps = deps;
         this.pipeline = new RouterPipeline([]);
@@ -41,10 +41,7 @@ export class SmartRouter {
         });
         // Create pipeline stages
         const stages = createPipelineStages(this.hardwareInfo, fleetManager.fleet, '', // sessionId - will be set per request
-        async (sessionId) => this.deps.telemetryStore.getSessionPin(sessionId), this.deps.telemetryStore, this.deps.config, // Pass config for LLM Router Stage
-        null, // embedder - TODO
-        null // centroids - TODO
-        );
+        async (sessionId) => this.deps.telemetryStore.getSessionPin(sessionId), this.deps.telemetryStore, this.deps.config);
         this.pipeline = new RouterPipeline(stages);
         this.initialized = true;
     }
@@ -94,7 +91,16 @@ export class SmartRouter {
             }
         }
         // Run pipeline
-        const decision = await this.pipeline.execute(context);
+        let decision;
+        try {
+            decision = await this.pipeline.execute(context);
+        }
+        catch (error) {
+            if (error instanceof RouterError)
+                throw error;
+            throw new RouterError('Routing pipeline failed. ' +
+                'Use `/model <provider/model>` to manually select a model.', error instanceof Error ? error : undefined);
+        }
         // Pin the model if configured
         if (this.deps.config.sessionPinning && !decision.sessionPinned) {
             await this.deps.telemetryStore.setSessionPin(request.sessionId, {
@@ -145,9 +151,6 @@ export class SmartRouter {
     getLastDecision() {
         return this.lastDecision || undefined;
     }
-    getFleetMode() {
-        return this.fleetMode;
-    }
     async getContextOverflowFallback(sessionId) {
         // Find largest model that fits
         const fleet = fleetManager.getAvailableModels();
@@ -155,18 +158,6 @@ export class SmartRouter {
         // TODO: Get session's estimated tokens from context
         // For now return null
         return null;
-    }
-    async setFleetMode(mode) {
-        this.fleetMode = mode;
-        this.deps.config.defaultMode = mode;
-        await this.deps.telemetryStore.setFleetMode(mode);
-        // Reload fleet
-        await fleetManager.loadFleet({
-            hardwareInfo: this.hardwareInfo,
-            config: this.deps.config,
-            enabledModels: [],
-            allModels: [],
-        });
     }
     async refreshPricing() {
         // TODO: Fetch LiteLLM pricing

@@ -1,6 +1,6 @@
 // src/router/standalone-router-client.ts
 // Standalone LLM Router using @huggingface/transformers in Node.js
-// Runs Qwen3-0.6B / Qwen3.5-0.8B locally via WASM (no Chrome extension needed)
+// Runs configured Qwen3 model locally via WASM (no Chrome extension needed)
 
 import { AutoTokenizer, env, Qwen2ForCausalLM, TextStreamer } from '@huggingface/transformers';
 import { SmartRouterConfig, RoutingRequest, RoutingDecision, ModelProfile, Tier, PipelineContext } from '../types';
@@ -14,50 +14,12 @@ if (env.backends?.onnx?.wasm) {
   env.backends.onnx.wasm.numThreads = 4;
 }
 
-export interface RouterModelConfig {
-  modelId: string;
-  label: string;
-  description: string;
-  dtype: 'q4f16' | 'q8';
-  sizeBytes: number;
+export class RouterError extends Error {
+  constructor(message: string, public readonly originalError?: Error) {
+    super(message);
+    this.name = 'RouterError';
+  }
 }
-
-export const ROUTER_MODEL_OPTIONS: RouterModelConfig[] = [
-  {
-    modelId: 'dkeviv/Qwen3-0.6B-DQ-ONNX-bucket',
-    label: 'Qwen3 0.6B',
-    description: 'Fastest router · 370 MB · Best for quick decisions',
-    dtype: 'q4f16',
-    sizeBytes: 369722023,
-  },
-  {
-    modelId: 'dkeviv/Qwen3.5-0.8B-Text-ONNX-WebGPU-QDQ-bucket',
-    label: 'Qwen3.5 0.8B',
-    description: 'Higher quality routing · 490 MB · Better reasoning',
-    dtype: 'q4f16',
-    sizeBytes: 489343768,
-  },
-];
-
-const ROUTER_SYSTEM_PROMPT = `You are a model router. Select the BEST model for the request.
-
-Available models (JSON):
-{{MODELS_JSON}}
-
-Request:
-- Turn type: {{TURN_TYPE}}
-- Estimated input tokens: {{ESTIMATED_TOKENS}}
-- Required capabilities: reasoning={{REQ_REASONING}}, codeGen={{REQ_CODEGEN}}, toolUse={{REQ_TOOLUSE}}
-- Hardware: {{HARDWARE_PROBE}} ({{TOTAL_RAM}}GB RAM)
-- Session pinned: {{SESSION_PINNED}}
-
-Output ONLY valid JSON:
-{
-  "model_id": "provider/model-id",
-  "reason": "1-2 sentence explanation",
-  "confidence": 0.0-1.0,
-  "estimated_cost_usd": 0.0001
-}`;
 
 export class StandaloneRouterClient {
   private model: any = null;
@@ -78,7 +40,7 @@ export class StandaloneRouterClient {
   }
 
   private async _initialize(modelId?: string): Promise<void> {
-    const targetModelId = modelId || this.getDefaultRouterModelId();
+    const targetModelId = modelId || this.config.routerModel;
     
     if (this.isInitialized && this.currentModelId === targetModelId) {
       return;
@@ -91,7 +53,7 @@ export class StandaloneRouterClient {
       this.tokenizer = null;
     }
 
-    console.log(`[smart-router] Loading router model: ${targetModelId}`);
+    console.log(`[cogumi-smart-router] Loading router model: ${targetModelId}`);
     
     this.tokenizer = await AutoTokenizer.from_pretrained(targetModelId);
     
@@ -107,24 +69,22 @@ export class StandaloneRouterClient {
       const warmupInputs = await this.tokenizer('Route this request.');
       await this.model.generate({ ...warmupInputs, max_new_tokens: 1, do_sample: false });
     } catch (e) {
-      console.warn('[smart-router] Router model warmup failed:', e);
+      console.warn('[cogumi-smart-router] Router model warmup failed:', e);
     }
 
     this.currentModelId = targetModelId;
     this.isInitialized = true;
-    console.log(`[smart-router] Router model ready: ${targetModelId}`);
+    console.log(`[cogumi-smart-router] Router model ready: ${targetModelId}`);
   }
 
-  private getDefaultRouterModelId(): string {
-    return ROUTER_MODEL_OPTIONS[0].modelId; // Qwen3 0.6B by default
-  }
-
-  async route(request: RoutingRequest, context: PipelineContext): Promise<RoutingDecision | null> {
+  async route(request: RoutingRequest, context: PipelineContext): Promise<RoutingDecision> {
     await this.initialize();
 
     // Get filtered fleet models for the prompt
     const fleetModels = context.filteredModels;
-    if (fleetModels.length === 0) return null;
+    if (fleetModels.length === 0) {
+      throw new RouterError('No models available in fleet after filtering');
+    }
 
     // Build prompt with available models
     const modelsJson = JSON.stringify(fleetModels.map(m => ({
@@ -164,8 +124,13 @@ export class StandaloneRouterClient {
 
       return this.parseDecision(decoded, fleetModels, request, context);
     } catch (error) {
-      console.error('[smart-router] LLM routing failed:', error);
-      return null; // Fall through to deterministic pipeline
+      console.error('[cogumi-smart-router] LLM routing failed:', error);
+      throw new RouterError(
+        'LLM router failed to generate a routing decision. ' +
+        'The router model may be unavailable or the request too complex. ' +
+        'Use `/model <provider/model>` to manually select a model.',
+        error instanceof Error ? error : undefined
+      );
     }
   }
 
@@ -174,11 +139,13 @@ export class StandaloneRouterClient {
     fleetModels: ModelProfile[],
     request: RoutingRequest,
     context: PipelineContext
-  ): RoutingDecision | null {
+  ): RoutingDecision {
     try {
       // Extract JSON from response
       const jsonMatch = response.match(/\{[\s\S]*\}/);
-      if (!jsonMatch) return null;
+      if (!jsonMatch) {
+        throw new Error('No JSON found in router response');
+      }
 
       const parsed = JSON.parse(jsonMatch[0]);
       const selectedModelId = parsed.model_id;
@@ -194,8 +161,7 @@ export class StandaloneRouterClient {
       );
 
       if (!matchedModel) {
-        console.warn(`[smart-router] Router selected unknown model: ${selectedModelId}`);
-        return null;
+        throw new Error(`Router selected unknown model: ${selectedModelId}`);
       }
 
       return {
@@ -211,8 +177,12 @@ export class StandaloneRouterClient {
         stage: 'llm-router',
       };
     } catch (error) {
-      console.error('[smart-router] Failed to parse router decision:', error);
-      return null;
+      console.error('[cogumi-smart-router] Failed to parse router decision:', error);
+      throw new RouterError(
+        'LLM router returned an invalid response. ' +
+        'Use `/model <provider/model>` to manually select a model.',
+        error instanceof Error ? error : undefined
+      );
     }
   }
 
@@ -248,10 +218,6 @@ export class StandaloneRouterClient {
     return this.currentModelId;
   }
 
-  getAvailableModels(): RouterModelConfig[] {
-    return ROUTER_MODEL_OPTIONS;
-  }
-
   isReady(): boolean {
     return this.isInitialized;
   }
@@ -263,7 +229,27 @@ export class StandaloneRouterClient {
       this.tokenizer = null;
       this.isInitialized = false;
       this.initPromise = null;
-      console.log('[smart-router] Router model disposed');
+      console.log('[cogumi-smart-router] Router model disposed');
     }
   }
 }
+
+const ROUTER_SYSTEM_PROMPT = `You are a model router. Select the BEST model for the request.
+
+Available models (JSON):
+{{MODELS_JSON}}
+
+Request:
+- Turn type: {{TURN_TYPE}}
+- Estimated input tokens: {{ESTIMATED_TOKENS}}
+- Required capabilities: reasoning={{REQ_REASONING}}, codeGen={{REQ_CODEGEN}}, toolUse={{REQ_TOOLUSE}}
+- Hardware: {{HARDWARE_PROBE}} ({{TOTAL_RAM}}GB RAM)
+- Session pinned: {{SESSION_PINNED}}
+
+Output ONLY valid JSON:
+{
+  "model_id": "provider/model-id",
+  "reason": "1-2 sentence explanation",
+  "confidence": 0.0-1.0,
+  "estimated_cost_usd": 0.0001
+}`;

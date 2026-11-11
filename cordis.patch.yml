@@ -1,9 +1,9 @@
 # cordis.patch.yml
-- id: smart-router
-  name: "@dkeviv/dsh-smart-router"
+- id: cogumi-smart-router
+  name: "@dkeviv/cogumi-smart-router-dsh"
   config:
     enabled: true
-    defaultMode: "scoped"
+    routerModel: "dkeviv/Qwen3-0.6B-DQ-ONNX-bucket"
     sessionPinning: true
     hardwareProbe: true
     localRuntime: true
@@ -19,7 +19,7 @@
         maxLatencyMs: 5000
       economical-cloud:
         enabled: true
-        maxCostPer1M: 0.50
+        maxCostPer1M: 0.5
       frontier-cloud:
         enabled: true
-        maxCostPer1M: 5.00
+        maxCostPer1M: 5

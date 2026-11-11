@@ -18,7 +18,6 @@ export declare class SmartRouter {
     private hardwareInfo;
     private initialized;
     private lastDecision;
-    private fleetMode;
     constructor(deps: SmartRouterDeps);
     initialize(): Promise<void>;
     route(request: RoutingRequest): Promise<RoutingDecision>;
@@ -26,7 +25,6 @@ export declare class SmartRouter {
     getFleet(): ModelProfile[];
     getHardwareInfo(): HardwareInfo | null;
     getContextOverflowFallback(sessionId: string): Promise<RoutingDecision | null>;
-    setFleetMode(mode: 'scoped' | 'all'): Promise<void>;
     refreshPricing(): Promise<{
         modelCount: number;
         lastUpdated: string;

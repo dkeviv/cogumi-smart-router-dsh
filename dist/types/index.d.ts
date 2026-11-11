@@ -112,7 +112,7 @@ export interface PipelineStageHandler {
 }
 export interface SmartRouterConfig {
     enabled: boolean;
-    defaultMode: 'scoped' | 'all';
+    routerModel: string;
     sessionPinning: boolean;
     hardwareProbe: boolean;
     localRuntime: boolean;

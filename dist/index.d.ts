@@ -5,6 +5,7 @@ import { probeHardware } from './hardware/probe';
 import { fleetManager } from './fleet';
 import { LLMRouterStage } from './router/llm-router-stage';
 import { StandaloneRouterClient } from './router/standalone-router-client';
+import { RouterError } from './router/standalone-router-client';
 declare module '@deepseek-ai/cordis' {
     interface Context {
         smartRouter: SmartRouter;
@@ -12,9 +13,9 @@ declare module '@deepseek-ai/cordis' {
 }
 export interface PluginConfig extends SmartRouterConfig {
 }
-export declare const name = "smart-router";
+export declare const name = "cogumi-smart-router";
 export declare function apply(ctx: Context, config: PluginConfig): void;
-export { SmartRouter, createSmartRouter, probeHardware, fleetManager, LLMRouterStage, StandaloneRouterClient, };
+export { SmartRouter, createSmartRouter, probeHardware, fleetManager, LLMRouterStage, StandaloneRouterClient, RouterError, };
 export { TelemetryStore, createTelemetryStore, } from './telemetry';
 export type { SmartRouterConfig, SmartRouterDeps, RoutingDecision, RoutingRequest, ModelProfile, Tier, TurnType, PipelineStage, HardwareInfo, TelemetryEvent, SessionStatsSnapshot, PlacementPlanReport, } from './types';
 //# sourceMappingURL=index.d.ts.map

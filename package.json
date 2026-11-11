@@ -1,7 +1,7 @@
 {
-  "name": "@dkeviv/dsh-smart-router",
+  "name": "@dkeviv/cogumi-smart-router-dsh",
   "version": "0.1.0",
-  "description": "Smart router plugin for DeepSeek Harness (DSH) - intelligently routes LLM requests to optimal models using a local LLM router",
+  "description": "Smart router plugin for DeepSeek Harness (DSH) - uses a local LLM to intelligently route requests to optimal models",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -21,6 +21,7 @@
   "keywords": [
     "dsh",
     "deepseek-harness",
+    "cogumi",
     "smart-router",
     "llm",
     "routing",
@@ -59,11 +60,11 @@
   },
   "dsh": {
     "plugin": {
-      "id": "smart-router",
-      "name": "@dkeviv/dsh-smart-router",
+      "id": "cogumi-smart-router",
+      "name": "@dkeviv/cogumi-smart-router-dsh",
       "config": {
         "enabled": true,
-        "defaultMode": "scoped",
+        "routerModel": "dkeviv/Qwen3-0.6B-DQ-ONNX-bucket",
         "sessionPinning": true,
         "hardwareProbe": true,
         "localRuntime": true,

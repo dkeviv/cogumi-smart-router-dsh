@@ -14,6 +14,7 @@ import { probeHardware } from './hardware/probe';
 import { fleetManager } from './fleet';
 import { LLMRouterStage } from './router/llm-router-stage';
 import { StandaloneRouterClient } from './router/standalone-router-client';
+import { RouterError } from './router/standalone-router-client';
 
 declare module '@deepseek-ai/cordis' {
   interface Context {
@@ -23,7 +24,7 @@ declare module '@deepseek-ai/cordis' {
 
 export interface PluginConfig extends SmartRouterConfig {}
 
-export const name = 'smart-router';
+export const name = 'cogumi-smart-router';
 
 export function apply(ctx: Context, config: PluginConfig): void {
   // Get required services
@@ -60,7 +61,7 @@ export function apply(ctx: Context, config: PluginConfig): void {
         await router.initialize();
         await llmRouterStage.initialize();
         await routerClient.initialize();
-        console.log('[smart-router] Initialized successfully');
+        console.log('[cogumi-smart-router] Initialized successfully');
 
         // Register slash commands
         registerSmartRouterCommand({
@@ -78,7 +79,7 @@ export function apply(ctx: Context, config: PluginConfig): void {
         // Hook into agent loop for fallback
         hookAgentLoop(ctx, router);
       } catch (error) {
-        console.error('[smart-router] Initialization failed:', error);
+        console.error('[cogumi-smart-router] Initialization failed:', error);
       }
     }
   });
@@ -101,8 +102,8 @@ function hookModelSelection(
 ): void {
   // Hook into LLM before-stream to auto-route when no model specified
   ctx.llm?.on('before-stream', async (options: any) => {
-    // Only auto-route if using smart-router/auto model
-    if (options.model === 'smart-router/auto' || options.provider === 'smart-router') {
+    // Only auto-route if using cogumi-smart-router/auto model
+    if (options.model === 'cogumi-smart-router/auto' || options.provider === 'cogumi-smart-router') {
       try {
         // Build routing request from context
         const request = await buildRoutingRequest(ctx, options);
@@ -115,7 +116,16 @@ function hookModelSelection(
           model: decision.model,
         };
       } catch (error) {
-        console.error('[smart-router] Routing failed:', error);
+        if (error instanceof RouterError) {
+          // Show user-friendly error and suggest manual selection
+          console.error('[cogumi-smart-router] Routing failed:', error.message);
+          throw new Error(
+            `⚠️ ${error.message}\n\n` +
+            `Use \`/model <provider/model>\` to manually select a model.\n` +
+            `Example: \`/model anthropic/claude-3.5-sonnet\``
+          );
+        }
+        console.error('[cogumi-smart-router] Routing failed:', error);
         // Fall through to default behavior
       }
     }
@@ -229,6 +239,7 @@ export {
   fleetManager,
   LLMRouterStage,
   StandaloneRouterClient,
+  RouterError,
 };
 
 export {

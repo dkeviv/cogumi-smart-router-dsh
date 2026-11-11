@@ -1,8 +1,9 @@
 // src/router/llm-router-stage.ts
 // LLM Router Stage - DEFAULT routing stage (after Session Pin, before Deterministic Triage)
+// If LLM router fails, throws RouterError to inform user
 
-import { PipelineContext, PipelineStage, PipelineStageHandler, RoutingDecision, ModelProfile, SmartRouterConfig } from '../types';
-import { StandaloneRouterClient } from './standalone-router-client';
+import { PipelineContext, PipelineStage, PipelineStageHandler, RoutingDecision, SmartRouterConfig } from '../types';
+import { StandaloneRouterClient, RouterError } from './standalone-router-client';
 
 export class LLMRouterStage implements PipelineStageHandler {
   name: PipelineStage = 'llm-router';
@@ -29,15 +30,21 @@ export class LLMRouterStage implements PipelineStageHandler {
     }
   }
 
-  async execute(context: PipelineContext): Promise<RoutingDecision | null> {
-    if (!this.enabled) return null;
+  async execute(context: PipelineContext): Promise<RoutingDecision> {
+    if (!this.enabled) {
+      throw new RouterError('LLM router is disabled. Enable it in plugin config or use `/model <provider/model>` to manually select a model.');
+    }
     if (!this.routerClient) await this.initialize();
 
     // Skip if session is already pinned (handled by SessionPinStage earlier)
-    if (context.decisionSoFar?.sessionPinned) return null;
+    if (context.decisionSoFar?.sessionPinned) {
+      throw new RouterError('Session is pinned to a model. Use `/model <provider/model>` to override or unpin session.');
+    }
 
     // Skip if no models available
-    if (context.filteredModels.length === 0) return null;
+    if (context.filteredModels.length === 0) {
+      throw new RouterError('No models available in fleet after filtering. Check your model configuration.');
+    }
 
     const startTime = Date.now();
 
@@ -49,11 +56,16 @@ export class LLMRouterStage implements PipelineStageHandler {
         decision.estimatedLatencyMs += Date.now() - startTime;
         return decision;
       }
+      
+      throw new RouterError('LLM router returned no decision');
     } catch (error) {
-      console.warn('[smart-router] LLMRouterStage error, falling through:', error);
+      if (error instanceof RouterError) throw error;
+      throw new RouterError(
+        'LLM router failed. The router model may be unavailable or the request too complex. ' +
+        'Use `/model <provider/model>` to manually select a model.',
+        error instanceof Error ? error : undefined
+      );
     }
-
-    return null; // Fall through to deterministic triage
   }
 
   getRouterClient(): StandaloneRouterClient | null {
@@ -64,9 +76,5 @@ export class LLMRouterStage implements PipelineStageHandler {
     if (this.routerClient) {
       await this.routerClient.switchModel(modelId);
     }
-  }
-
-  getAvailableRouterModels() {
-    return this.routerClient?.getAvailableModels() || [];
   }
 }
