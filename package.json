@@ -1,0 +1,85 @@
+{
+  "name": "@dkeviv/dsh-smart-router",
+  "version": "0.1.0",
+  "description": "Smart router plugin for DeepSeek Harness - routes requests to optimal LLM models",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "lint": "eslint src --ext .ts",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "keywords": [
+    "dsh",
+    "smart-router",
+    "llm",
+    "routing",
+    "cordis"
+  ],
+  "author": "dkeviv",
+  "license": "MIT",
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "peerDependencies": {},
+  "dependencies": {
+    "sql.js": "^1.10.0",
+    "yaml": "^2.4.0",
+    "aho-corasick": "^0.1.2",
+    "onnxruntime-node": "^1.17.0",
+    "tiktoken": "^1.0.12"
+  },
+  "devDependencies": {
+    "@types/sql.js": "^1.4.0",
+    "@types/node": "^20.0.0",
+    "typescript": "^5.4.0",
+    "vitest": "^1.0.0",
+    "eslint": "^8.56.0",
+    "@typescript-eslint/eslint-plugin": "^7.0.0",
+    "@typescript-eslint/parser": "^7.0.0"
+  },
+  "dsh": {
+    "plugin": {
+      "id": "smart-router",
+      "name": "@dkeviv/dsh-smart-router",
+      "config": {
+        "enabled": true,
+        "defaultMode": "scoped",
+        "sessionPinning": true,
+        "hardwareProbe": true,
+        "localRuntime": true,
+        "telemetry": {
+          "enabled": true,
+          "retentionDays": 30
+        },
+        "fallback": {
+          "enabled": true,
+          "maxRetries": 3
+        },
+        "tiers": {
+          "zero-tier": {
+            "enabled": true,
+            "maxLatencyMs": 5000
+          },
+          "economical-cloud": {
+            "enabled": true,
+            "maxCostPer1M": 0.50
+          },
+          "frontier-cloud": {
+            "enabled": true,
+            "maxCostPer1M": 5.00
+          }
+        }
+      }
+    }
+  }
+}

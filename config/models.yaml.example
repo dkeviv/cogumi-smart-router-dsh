@@ -1,0 +1,121 @@
+// config/models.yaml.example
+# Fleet configuration for dsh-smart-router
+# Copy to config/models.yaml and customize
+
+models:
+  # Zero-tier (local) models
+  - id: local-gemma-4-7b
+    tier: zero-tier
+    provider: lmstudio
+    endpoint: http://localhost:1234/v1
+    capabilities:
+      reasoning: 0.4
+      code_gen: 0.6
+      tool_use: 0.3
+      vision: false
+      function_calling: false
+      json_mode: true
+    pricing:
+      registry_key: "local/lmstudio"
+      fallback_cost_per_1m: 0.0
+
+  - id: local-qwen-3.5
+    tier: zero-tier
+    provider: ollama
+    endpoint: http://localhost:11434
+    capabilities:
+      reasoning: 0.45
+      code_gen: 0.65
+      tool_use: 0.35
+      vision: false
+      function_calling: false
+      json_mode: true
+    pricing:
+      registry_key: "local/ollama"
+      fallback_cost_per_1m: 0.0
+
+  # Economical-cloud models
+  - id: deepseek-chat
+    tier: economical-cloud
+    provider: deepseek
+    capabilities:
+      reasoning: 0.7
+      code_gen: 0.8
+      tool_use: 0.7
+      vision: false
+      function_calling: true
+      json_mode: true
+    pricing:
+      registry_key: "deepseek/deepseek-chat"
+      fallback_cost_per_1m: 0.14
+
+  - id: claude-3.5-haiku
+    tier: economical-cloud
+    provider: anthropic
+    capabilities:
+      reasoning: 0.75
+      code_gen: 0.85
+      tool_use: 0.8
+      vision: true
+      function_calling: true
+      json_mode: true
+    pricing:
+      registry_key: "anthropic/claude-3.5-haiku"
+      fallback_cost_per_1m: 0.25
+
+  - id: gemini-1.5-flash
+    tier: economical-cloud
+    provider: google
+    capabilities:
+      reasoning: 0.7
+      code_gen: 0.75
+      tool_use: 0.7
+      vision: true
+      function_calling: true
+      json_mode: true
+    pricing:
+      registry_key: "google/gemini-1.5-flash"
+      fallback_cost_per_1m: 0.075
+
+  # Frontier-cloud models
+  - id: claude-3.5-sonnet
+    tier: frontier-cloud
+    provider: anthropic
+    capabilities:
+      reasoning: 0.95
+      code_gen: 0.95
+      tool_use: 0.95
+      vision: true
+      function_calling: true
+      json_mode: true
+    pricing:
+      registry_key: "anthropic/claude-3.5-sonnet"
+      fallback_cost_per_1m: 3.00
+
+  - id: gpt-4o
+    tier: frontier-cloud
+    provider: openai
+    capabilities:
+      reasoning: 0.95
+      code_gen: 0.95
+      tool_use: 0.95
+      vision: true
+      function_calling: true
+      json_mode: true
+    pricing:
+      registry_key: "openai/gpt-4o"
+      fallback_cost_per_1m: 5.00
+
+  - id: deepseek-r1
+    tier: frontier-cloud
+    provider: deepseek
+    capabilities:
+      reasoning: 0.95
+      code_gen: 0.9
+      tool_use: 0.8
+      vision: false
+      function_calling: true
+      json_mode: true
+    pricing:
+      registry_key: "deepseek/deepseek-r1"
+      fallback_cost_per_1m: 2.00

@@ -1,0 +1,25 @@
+# cordis.patch.yml
+- id: smart-router
+  name: "@dkeviv/dsh-smart-router"
+  config:
+    enabled: true
+    defaultMode: "scoped"
+    sessionPinning: true
+    hardwareProbe: true
+    localRuntime: true
+    telemetry:
+      enabled: true
+      retentionDays: 30
+    fallback:
+      enabled: true
+      maxRetries: 3
+    tiers:
+      zero-tier:
+        enabled: true
+        maxLatencyMs: 5000
+      economical-cloud:
+        enabled: true
+        maxCostPer1M: 0.50
+      frontier-cloud:
+        enabled: true
+        maxCostPer1M: 5.00
