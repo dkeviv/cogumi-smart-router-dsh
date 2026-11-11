@@ -20,6 +20,8 @@
 | **💬 Simple On/Off** | One slash command: `/cogumi-smart-router on\|off\|status` |
 | **📊 Telemetry** | SQLite-backed routing history with cost/latency tracking |
 | **🔧 Router Model Switch** | Hot-swap between Qwen3 0.6B (fast) and Qwen3.5 0.8B (smart) |
+| **📏 160k+ Context Filter** | Only models with ≥160k context window are eligible for routing |
+| **📦 Smart Context Compaction** | Auto-compacts conversation when exceeding model's context window with disclaimer |
 
 ---
 
@@ -33,7 +35,7 @@
 
 ```bash
 # Install the plugin
-dsh plugin --profile desktop add github:dkeviv/smart-router-dsh
+dsh plugin --profile desktop add github:dkeviv/cogumi-smart-router-dsh
 
 # Restart DSH or reload
 /reload
@@ -58,7 +60,7 @@ dsh plugin --profile desktop add github:dkeviv/smart-router-dsh
 | `/cogumi-smart-router on` | Enable the LLM router |
 | `/cogumi-smart-router off` | Disable router — use `/model <provider/model>` manually |
 | `/cogumi-smart-router model` | Show current router model |
-| `/cogumi-smart-router model <model-id>` | Switch router model |
+| `/cogumi-smart-router model <name>` | Switch router model (`qwen3-0.6b` or `qwen3.5-0.8b`) |
 
 ---
 
@@ -75,10 +77,10 @@ dsh plugin --profile desktop add github:dkeviv/smart-router-dsh
 /cogumi-smart-router off
 
 # Switch to smarter router model (Qwen3.5 0.8B)
-/cogumi-smart-router model dkeviv/Qwen3.5-0.8B-Text-ONNX-WebGPU-QDQ-bucket
+/cogumi-smart-router model qwen3.5-0.8b
 
 # Switch back to fastest (Qwen3 0.6B)
-/cogumi-smart-router model dkeviv/Qwen3-0.6B-DQ-ONNX-bucket
+/cogumi-smart-router model qwen3-0.6b
 ```
 
 ---
@@ -99,10 +101,14 @@ Latency: ~245ms | Est. Cost: $0.000523
 
 ---
 
-### End-of-Response Indicator
+### Pre-Routing Notification
 
-Every response includes a footer showing which model was used:
+Before routing, you'll see:
+```
+🔄 Routing to best model...
+```
 
+Then the router selects the model and you'll see it in the response footer:
 ```
 ---
 *Routed via: anthropic/claude-3.5-sonnet (frontier-cloud) 📌 | Stage: llm-router | ~245ms*
@@ -132,6 +138,23 @@ The **default primary routing stage** — runs a local Qwen3 model that:
 3. Outputs JSON: `{ "model_id": "provider/model", "reason": "...", "confidence": 0.9 }`
 4. **On failure**: Throws clear error with manual selection guidance
 
+### Context Window Compaction
+
+When conversation exceeds the selected model's context window:
+
+1. **Always keep** system messages
+2. **Keep recent N messages** intact (configurable, default 20)
+3. **Summarize older messages** into a system message block
+4. **Fallback truncation** — drops oldest messages if still over limit
+
+**Disclaimer added to response:**
+```
+⚠️ **Context Compacted**: Conversation was 45,000 tokens but model only supports 30,000 tokens. 15 older messages were summarized. Some context may be lost.
+
+---
+*Routed via: anthropic/claude-3.5-sonnet (frontier-cloud) 📌 | Stage: llm-router | ~245ms*
+```
+
 ---
 
 ## ⚙️ Configuration
@@ -149,6 +172,7 @@ The **default primary routing stage** — runs a local Qwen3 model that:
 | `telemetry.retentionDays` | `30` | Data retention |
 | `fallback.enabled` | `true` | Enable fallback on router failure |
 | `fallback.maxRetries` | `3` | Max fallback attempts |
+| `keepRecentMessages` | `20` | Recent messages to keep during compaction |
 
 ### Tier Cost Limits
 
@@ -162,15 +186,26 @@ The **default primary routing stage** — runs a local Qwen3 model that:
 
 ## 🔧 Router Models
 
-| Model ID | Size | Best For |
-|----------|------|----------|
-| `dkeviv/Qwen3-0.6B-DQ-ONNX-bucket` | 370 MB | Fastest routing, quick decisions |
-| `dkeviv/Qwen3.5-0.8B-Text-ONNX-WebGPU-QDQ-bucket` | 490 MB | Higher quality routing, better reasoning |
+| Simple Name | Model ID | Size | Best For |
+|-------------|----------|------|----------|
+| `qwen3-0.6b` | `dkeviv/Qwen3-0.6B-DQ-ONNX-bucket` | 370 MB | Fastest routing, quick decisions |
+| `qwen3.5-0.8b` | `dkeviv/Qwen3.5-0.8B-Text-ONNX-WebGPU-QDQ-bucket` | 490 MB | Higher quality routing, better reasoning |
 
 Switch anytime:
 ```bash
-/cogumi-smart-router model dkeviv/Qwen3.5-0.8B-Text-ONNX-WebGPU-QDQ-bucket
+/cogumi-smart-router model qwen3-0.6b
+/cogumi-smart-router model qwen3.5-0.8b
 ```
+
+---
+
+## ⚙️ Model Fleet Requirements
+
+**Minimum context window: 160k tokens**
+
+Only models with ≥160k context window are eligible for routing. This ensures the router has sufficient context for intelligent decisions.
+
+Models with <160k context window are automatically filtered out during fleet loading.
 
 ---
 
@@ -204,8 +239,8 @@ Then manually select:
 
 ```bash
 # Clone
-git clone https://github.com/dkeviv/smart-router-dsh.git
-cd smart-router-dsh
+git clone https://github.com/dkeviv/cogumi-smart-router-dsh.git
+cd cogumi-smart-router-dsh
 
 # Install deps
 npm install
@@ -234,7 +269,7 @@ src/
 │   ├── pipeline.ts               # 6-stage pipeline
 │   ├── llm-router-stage.ts       # LLM Router Stage (DEFAULT)
 │   └── standalone-router-client.ts  # Local Qwen3 via transformers.js
-├── fleet/index.ts                # Fleet management
+├── fleet/index.ts                # Fleet management (160k filter)
 ├── hardware/
 │   ├── probe.ts                  # Hardware detection
 │   └── local-runtime.ts          # LM Studio/Ollama probe
@@ -256,7 +291,8 @@ src/
 | Router model fails to load | Check internet (downloads from Hugging Face on first run) |
 | Local models not detected | Ensure LM Studio (port 1234) or Ollama (port 11434) running |
 | "No models available" | Check `/scoped-models` in DSH; enable desired models |
-| High latency | Switch to Qwen3 0.6B: `/cogumi-smart-router model dkeviv/Qwen3-0.6B-DQ-ONNX-bucket` |
+| High latency | Switch to Qwen3 0.6B: `/cogumi-smart-router model qwen3-0.6b` |
+| Context compacted too aggressively | Increase `keepRecentMessages` in config |
 
 ---
 
@@ -268,12 +304,12 @@ MIT License — see [LICENSE](LICENSE) for details.
 
 ## 🙏 Credits
 
-- **DSM (DeepSeek Harness)** — Plugin architecture
+- **DSH (DeepSeek Harness)** — Plugin architecture
 - **@huggingface/transformers** — Local LLM inference (WASM)
 - **Qwen Team** — Qwen3 models on Hugging Face Hub
 - **Cogumi** — Inspiration for agent routing patterns
 
 ---
 
-**Repository:** https://github.com/dkeviv/smart-router-dsh  
-**Issues:** https://github.com/dkeviv/smart-router-dsh/issues
+**Repository:** https://github.com/dkeviv/cogumi-smart-router-dsh  
+**Issues:** https://github.com/dkeviv/cogumi-smart-router-dsh/issues
