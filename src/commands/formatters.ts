@@ -3,6 +3,7 @@
 
 import { SmartRouter } from '../router';
 import { RoutingDecision } from '../types';
+import { StandaloneRouterClient } from '../router/standalone-router-client';
 
 /** Format status message for /cogumi-smart-router */
 export function formatStatusMessage(

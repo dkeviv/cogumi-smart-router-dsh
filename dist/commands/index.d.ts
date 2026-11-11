@@ -17,6 +17,14 @@ export interface SmartRouterCommandDeps {
     llmRouterStage: LLMRouterStage;
     routerClient: StandaloneRouterClient;
 }
+export interface SmartRouterCommandDeps {
+    router: SmartRouter;
+    store: TelemetryStore;
+    ctx: Context;
+    config: SmartRouterConfig;
+    llmRouterStage: LLMRouterStage;
+    routerClient: StandaloneRouterClient;
+}
 export declare function registerSmartRouterCommand(deps: SmartRouterCommandDeps): void;
 /** Inject active model indicator at end of response */
 export declare function injectActiveModelIndicator(decision: RoutingDecision | undefined): string;

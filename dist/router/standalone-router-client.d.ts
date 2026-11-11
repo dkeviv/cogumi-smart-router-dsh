@@ -20,6 +20,8 @@ export declare class StandaloneRouterClient {
     private buildFallbackChain;
     switchModel(modelId: string): Promise<void>;
     getCurrentModel(): string;
+    /** Get simple model name (e.g., "qwen3-0.6b" instead of full HuggingFace ID) */
+    getCurrentSimpleModelName(): string;
     isReady(): boolean;
     dispose(): Promise<void>;
 }

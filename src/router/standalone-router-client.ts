@@ -14,6 +14,17 @@ if (env.backends?.onnx?.wasm) {
   env.backends.onnx.wasm.numThreads = 4;
 }
 
+// Simple model name mapping
+const ROUTER_MODEL_MAP: Record<string, string> = {
+  'dkeviv/Qwen3-0.6B-DQ-ONNX-bucket': 'qwen3-0.6b',
+  'dkeviv/Qwen3.5-0.8B-Text-ONNX-WebGPU-QDQ-bucket': 'qwen3.5-0.8b',
+};
+
+/** Convert full HuggingFace model ID to simple name */
+function toSimpleModelName(fullId: string): string {
+  return ROUTER_MODEL_MAP[fullId] || fullId;
+}
+
 export class RouterError extends Error {
   constructor(message: string, public readonly originalError?: Error) {
     super(message);
@@ -216,6 +227,11 @@ export class StandaloneRouterClient {
 
   getCurrentModel(): string {
     return this.currentModelId;
+  }
+
+  /** Get simple model name (e.g., "qwen3-0.6b" instead of full HuggingFace ID) */
+  getCurrentSimpleModelName(): string {
+    return toSimpleModelName(this.currentModelId);
   }
 
   isReady(): boolean {
