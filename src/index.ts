@@ -6,7 +6,7 @@ import { LlmRuntime } from '@deepseek-ai/dsh-llm';
 import { Session } from '@deepseek-ai/dsh-session';
 import { SystemInfoProvider } from '@deepseek-ai/dsh-home-paths';
 
-import { SmartRouterConfig, SmartRouterDeps, RoutingDecision } from './types';
+import { SmartRouterConfig, SmartRouterDeps, RoutingDecision, ContextCompactionResult } from './types';
 import { createSmartRouter, SmartRouter } from './router';
 import { createTelemetryStore, TelemetryStore } from './telemetry';
 import { registerSmartRouterCommand, injectActiveModelIndicator } from './commands';
@@ -54,6 +54,9 @@ export function apply(ctx: Context, config: PluginConfig): void {
   const llmRouterStage = new LLMRouterStage(config as SmartRouterConfig, telemetryStore);
   const routerClient = new StandaloneRouterClient(config as SmartRouterConfig, telemetryStore);
 
+  // Store for compaction info to pass between hooks
+  const compactionStore = new Map<string, ContextCompactionResult>();
+
   // Initialize router on startup
   ctx.on('ready', async () => {
     if (config.enabled) {
@@ -74,7 +77,7 @@ export function apply(ctx: Context, config: PluginConfig): void {
         });
 
         // Hook into model selection
-        hookModelSelection(ctx, router, telemetryStore);
+        hookModelSelection(ctx, router, telemetryStore, compactionStore);
 
         // Hook into agent loop for fallback
         hookAgentLoop(ctx, router);
@@ -88,7 +91,6 @@ export function apply(ctx: Context, config: PluginConfig): void {
   ctx.on('dispose', () => {
     telemetryStore.close();
     fleetManager.stopHealthChecks();
-    // Dispose router model
     if (routerClient && typeof routerClient.dispose === 'function') {
       routerClient.dispose();
     }
@@ -98,7 +100,8 @@ export function apply(ctx: Context, config: PluginConfig): void {
 function hookModelSelection(
   ctx: Context,
   router: SmartRouter,
-  store: TelemetryStore
+  store: TelemetryStore,
+  compactionStore: Map<string, ContextCompactionResult>
 ): void {
   // Hook into LLM before-stream to auto-route when no model specified
   ctx.llm?.on('before-stream', async (options: any) => {
@@ -108,6 +111,16 @@ function hookModelSelection(
         // Build routing request from context
         const request = await buildRoutingRequest(ctx, options);
         const decision = await router.route(request);
+
+        // Store compaction info for after-stream hook
+        if (decision.contextCompaction) {
+          compactionStore.set(options.requestId || ctx.session?.id || 'default', decision.contextCompaction);
+        }
+
+        // Show pre-routing message
+        if (ctx.ui?.notify) {
+          ctx.ui.notify(`🔄 Routing to ${decision.provider}/${decision.model}...`, 'info');
+        }
 
         // Override with routed model
         return {
@@ -130,6 +143,34 @@ function hookModelSelection(
       }
     }
     return options;
+  });
+
+  // Hook into after-stream to inject active model indicator + compaction disclaimer
+  ctx.llm?.on('after-stream', async (options: any) => {
+    const result = options.result;
+    if (!result) return result;
+    
+    if (options.model === 'cogumi-smart-router/auto' || options.provider === 'cogumi-smart-router') {
+      const decision = router.getLastDecision?.();
+      let indicator = injectActiveModelIndicator(decision);
+      
+      // Add compaction disclaimer if context was compacted
+      const requestId = options.requestId || ctx.session?.id || 'default';
+      const compaction = compactionStore.get(requestId);
+      if (compaction?.wasCompacted && compaction.disclaimer) {
+        indicator = compaction.disclaimer + '\n\n' + indicator;
+        compactionStore.delete(requestId);
+      }
+      
+      if (indicator && result.content) {
+        // Append indicator to last assistant message
+        const lastMsg = result.content[result.content.length - 1];
+        if (lastMsg && lastMsg.type === 'text') {
+          lastMsg.text += indicator;
+        }
+      }
+    }
+    return result;
   });
 }
 

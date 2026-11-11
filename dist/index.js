@@ -2,7 +2,7 @@
 // Main plugin entry point for DSH Cordis
 import { createSmartRouter, SmartRouter } from './router';
 import { createTelemetryStore } from './telemetry';
-import { registerSmartRouterCommand } from './commands';
+import { registerSmartRouterCommand, injectActiveModelIndicator } from './commands';
 import { probeHardware } from './hardware/probe';
 import { fleetManager } from './fleet';
 import { LLMRouterStage } from './router/llm-router-stage';
@@ -32,6 +32,8 @@ export function apply(ctx, config) {
     // Create LLM Router Stage and Standalone Router Client
     const llmRouterStage = new LLMRouterStage(config, telemetryStore);
     const routerClient = new StandaloneRouterClient(config, telemetryStore);
+    // Store for compaction info to pass between hooks
+    const compactionStore = new Map();
     // Initialize router on startup
     ctx.on('ready', async () => {
         if (config.enabled) {
@@ -50,7 +52,7 @@ export function apply(ctx, config) {
                     routerClient,
                 });
                 // Hook into model selection
-                hookModelSelection(ctx, router, telemetryStore);
+                hookModelSelection(ctx, router, telemetryStore, compactionStore);
                 // Hook into agent loop for fallback
                 hookAgentLoop(ctx, router);
             }
@@ -63,13 +65,12 @@ export function apply(ctx, config) {
     ctx.on('dispose', () => {
         telemetryStore.close();
         fleetManager.stopHealthChecks();
-        // Dispose router model
         if (routerClient && typeof routerClient.dispose === 'function') {
             routerClient.dispose();
         }
     });
 }
-function hookModelSelection(ctx, router, store) {
+function hookModelSelection(ctx, router, store, compactionStore) {
     // Hook into LLM before-stream to auto-route when no model specified
     ctx.llm?.on('before-stream', async (options) => {
         // Only auto-route if using cogumi-smart-router/auto model
@@ -78,6 +79,14 @@ function hookModelSelection(ctx, router, store) {
                 // Build routing request from context
                 const request = await buildRoutingRequest(ctx, options);
                 const decision = await router.route(request);
+                // Store compaction info for after-stream hook
+                if (decision.contextCompaction) {
+                    compactionStore.set(options.requestId || ctx.session?.id || 'default', decision.contextCompaction);
+                }
+                // Show pre-routing message
+                if (ctx.ui?.notify) {
+                    ctx.ui.notify(`🔄 Routing to ${decision.provider}/${decision.model}...`, 'info');
+                }
                 // Override with routed model
                 return {
                     ...options,
@@ -98,6 +107,31 @@ function hookModelSelection(ctx, router, store) {
             }
         }
         return options;
+    });
+    // Hook into after-stream to inject active model indicator + compaction disclaimer
+    ctx.llm?.on('after-stream', async (options) => {
+        const result = options.result;
+        if (!result)
+            return result;
+        if (options.model === 'cogumi-smart-router/auto' || options.provider === 'cogumi-smart-router') {
+            const decision = router.getLastDecision?.();
+            let indicator = injectActiveModelIndicator(decision);
+            // Add compaction disclaimer if context was compacted
+            const requestId = options.requestId || ctx.session?.id || 'default';
+            const compaction = compactionStore.get(requestId);
+            if (compaction?.wasCompacted && compaction.disclaimer) {
+                indicator = compaction.disclaimer + '\n\n' + indicator;
+                compactionStore.delete(requestId);
+            }
+            if (indicator && result.content) {
+                // Append indicator to last assistant message
+                const lastMsg = result.content[result.content.length - 1];
+                if (lastMsg && lastMsg.type === 'text') {
+                    lastMsg.text += indicator;
+                }
+            }
+        }
+        return result;
     });
 }
 async function buildRoutingRequest(ctx, options) {

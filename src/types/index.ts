@@ -98,6 +98,14 @@ export interface RoutingRequest {
   turnId?: string;
 }
 
+export interface ContextCompactionResult {
+  messages: Message[];
+  wasCompacted: boolean;
+  disclaimer: string | null;
+  originalTokenCount: number;
+  compactedTokenCount: number;
+}
+
 export interface RoutingDecision {
   provider: string;
   model: string;
@@ -117,6 +125,7 @@ export interface RoutingDecision {
       timeout_ms: number;
     };
   };
+  contextCompaction?: ContextCompactionResult;
 }
 
 export interface PipelineContext {
