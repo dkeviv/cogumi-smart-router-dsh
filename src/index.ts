@@ -6,15 +6,15 @@ import { LlmRuntime } from '@deepseek-ai/dsh-llm';
 import { Session } from '@deepseek-ai/dsh-session';
 import { SystemInfoProvider } from '@deepseek-ai/dsh-home-paths';
 
-import { SmartRouterConfig, SmartRouterDeps, RoutingDecision, ContextCompactionResult } from './types';
-import { createSmartRouter, SmartRouter } from './router';
-import { createTelemetryStore, TelemetryStore } from './telemetry';
-import { registerSmartRouterCommand, injectActiveModelIndicator } from './commands';
-import { probeHardware } from './hardware/probe';
-import { fleetManager } from './fleet';
-import { LLMRouterStage } from './router/llm-router-stage';
-import { StandaloneRouterClient } from './router/standalone-router-client';
-import { RouterError } from './router/standalone-router-client';
+import { SmartRouterConfig, SmartRouterDeps, RoutingDecision, ContextCompactionResult } from './types/index.js';
+import { createSmartRouter, SmartRouter } from './router/index.js';
+import { createTelemetryStore, TelemetryStore } from './telemetry/index.js';
+import { registerSmartRouterCommand, injectActiveModelIndicator } from './commands/index.js';
+import { probeHardware } from './hardware/probe.js';
+import { fleetManager } from './fleet/index.js';
+import { LLMRouterStage } from './router/llm-router-stage.js';
+import { StandaloneRouterClient } from './router/standalone-router-client.js';
+import { RouterError } from './router/standalone-router-client.js';
 
 declare module '@deepseek-ai/cordis' {
   interface Context {
@@ -286,7 +286,7 @@ export {
 export {
   TelemetryStore,
   createTelemetryStore,
-} from './telemetry';
+} from './telemetry/index.js';
 
 export type {
   SmartRouterConfig,
@@ -301,4 +301,4 @@ export type {
   TelemetryEvent,
   SessionStatsSnapshot,
   PlacementPlanReport,
-} from './types';
+} from './types/index.js';

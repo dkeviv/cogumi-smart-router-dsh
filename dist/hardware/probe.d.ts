@@ -1,4 +1,4 @@
-import { HardwareInfo } from '../types';
+import { HardwareInfo } from '../types/index.js';
 export interface HardwareProbeConfig {
     minMemoryGbForLocal: number;
     minMemoryGbForClassification: number;

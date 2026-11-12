@@ -1,1 +1,1 @@
-{"version":3,"file":"index.js","sourceRoot":"","sources":["../../src/telemetry/index.ts"],"names":[],"mappings":"AAAA,yBAAyB;AACzB,OAAO,EAAE,cAAc,EAAE,oBAAoB,EAAE,MAAM,UAAU,CAAC;AAChE,OAAO,EAAE,8BAA8B,EAAE,MAAM,cAAc,CAAC"}
+{"version":3,"file":"index.js","sourceRoot":"","sources":["../../src/telemetry/index.ts"],"names":[],"mappings":"AAAA,yBAAyB;AACzB,OAAO,EAAE,cAAc,EAAE,oBAAoB,EAAE,MAAM,aAAa,CAAC;AACnE,OAAO,EAAE,8BAA8B,EAAE,MAAM,iBAAiB,CAAC"}

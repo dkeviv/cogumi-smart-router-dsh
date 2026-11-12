@@ -1,4 +1,4 @@
-import { TelemetryEvent } from '../types';
+import { TelemetryEvent } from '../types/index.js';
 export interface TelemetryStoreConfig {
     dbPath?: string;
     retentionDays?: number;

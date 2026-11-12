@@ -2,8 +2,8 @@
 // LLM Router Stage - DEFAULT routing stage (after Session Pin, before Deterministic Triage)
 // If LLM router fails, throws RouterError to inform user
 
-import { PipelineContext, PipelineStage, PipelineStageHandler, RoutingDecision, SmartRouterConfig } from '../types';
-import { StandaloneRouterClient, RouterError } from './standalone-router-client';
+import { PipelineContext, PipelineStage, PipelineStageHandler, RoutingDecision, SmartRouterConfig } from '../types/index.js';
+import { StandaloneRouterClient, RouterError } from './standalone-router-client.js';
 
 export class LLMRouterStage implements PipelineStageHandler {
   name: PipelineStage = 'llm-router';

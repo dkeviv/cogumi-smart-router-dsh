@@ -1,4 +1,4 @@
-import { SmartRouterConfig, RoutingRequest, RoutingDecision, PipelineContext } from '../types';
+import { SmartRouterConfig, RoutingRequest, RoutingDecision, PipelineContext } from '../types/index.js';
 export declare class RouterError extends Error {
     readonly originalError?: Error | undefined;
     constructor(message: string, originalError?: Error | undefined);

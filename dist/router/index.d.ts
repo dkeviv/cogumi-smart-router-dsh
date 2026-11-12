@@ -2,8 +2,8 @@ import { Context } from '@deepseek-ai/cordis';
 import { LlmRuntime } from '@deepseek-ai/dsh-llm';
 import { Session } from '@deepseek-ai/dsh-session';
 import { SystemInfoProvider } from '@deepseek-ai/dsh-home-paths';
-import { SmartRouterConfig, RoutingRequest, RoutingDecision, ModelProfile, HardwareInfo, ContextCompactionResult, Message } from '../types';
-import { TelemetryStore } from '../telemetry';
+import { SmartRouterConfig, RoutingRequest, RoutingDecision, ModelProfile, HardwareInfo, ContextCompactionResult, Message } from '../types/index.js';
+import { TelemetryStore } from '../telemetry/index.js';
 export interface SmartRouterDeps {
     ctx: Context;
     llm: LlmRuntime;

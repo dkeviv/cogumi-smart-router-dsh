@@ -1,7 +1,7 @@
 // src/router/llm-router-stage.ts
 // LLM Router Stage - DEFAULT routing stage (after Session Pin, before Deterministic Triage)
 // If LLM router fails, throws RouterError to inform user
-import { StandaloneRouterClient, RouterError } from './standalone-router-client';
+import { StandaloneRouterClient, RouterError } from './standalone-router-client.js';
 export class LLMRouterStage {
     config;
     telemetryStore;

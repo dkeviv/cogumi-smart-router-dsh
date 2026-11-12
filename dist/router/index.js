@@ -1,9 +1,9 @@
 // src/router/index.ts
 // Main SmartRouter class
-import { fleetManager } from '../fleet';
-import { probeHardware } from '../hardware/probe';
-import { createPipelineStages, RouterPipeline } from './pipeline';
-import { RouterError } from './standalone-router-client';
+import { fleetManager } from '../fleet/index.js';
+import { probeHardware } from '../hardware/probe.js';
+import { createPipelineStages, RouterPipeline } from './pipeline.js';
+import { RouterError } from './standalone-router-client.js';
 export class SmartRouter {
     deps;
     pipeline;

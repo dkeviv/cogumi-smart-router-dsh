@@ -1,7 +1,10 @@
 // src/hardware/probe.ts
 // Hardware capability detection for local inference gating
 
-import { HardwareInfo } from '../types';
+import os from 'node:os';
+import { execSync } from 'node:child_process';
+
+import { HardwareInfo } from '../types/index.js';
 
 export interface HardwareProbeConfig {
   minMemoryGbForLocal: number;
@@ -51,12 +54,10 @@ export async function probeHardware(
 
 function getTotalMemoryGb(): number {
   // Use Node's os.totalmem() for cross-platform
-  const os = require('os');
   return Math.round(os.totalmem() / (1024 * 1024 * 1024) * 10) / 10;
 }
 
 function getFreeMemoryGb(): number {
-  const os = require('os');
   return Math.round(os.freemem() / (1024 * 1024 * 1024) * 10) / 10;
 }
 
@@ -64,7 +65,6 @@ async function getBatteryInfo(): Promise<{ batteryLevel?: number; isPluggedIn?: 
   // macOS battery check via pmset
   if (process.platform === 'darwin') {
     try {
-      const { execSync } = require('child_process');
       const output = execSync('pmset -g batt', { encoding: 'utf8', timeout: 2000 });
       const lines = output.split('\n');
       for (const line of lines) {

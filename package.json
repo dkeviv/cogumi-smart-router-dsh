@@ -59,39 +59,8 @@
     "vitest": "^1.0.0"
   },
   "dsh": {
-    "plugin": {
-      "id": "cogumi-smart-router",
-      "name": "@dkeviv/cogumi-smart-router-dsh",
-      "config": {
-        "enabled": true,
-        "routerModel": "dkeviv/Qwen3-0.6B-DQ-ONNX-bucket",
-        "sessionPinning": true,
-        "hardwareProbe": true,
-        "localRuntime": true,
-        "telemetry": {
-          "enabled": true,
-          "retentionDays": 30
-        },
-        "fallback": {
-          "enabled": true,
-          "maxRetries": 3
-        },
-        "tiers": {
-          "zero-tier": {
-            "enabled": true,
-            "maxLatencyMs": 5000
-          },
-          "economical-cloud": {
-            "enabled": true,
-            "maxCostPer1M": 0.5
-          },
-          "frontier-cloud": {
-            "enabled": true,
-            "maxCostPer1M": 5
-          }
-        },
-        "keepRecentMessages": 20
-      }
+    "bundle": {
+      "patch": "./cordis.patch.yml"
     }
   }
 }

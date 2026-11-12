@@ -1,9 +1,9 @@
 // src/commands/formatters.ts
 // Formatters for slash command output (embedded widget snapshots)
 
-import { SmartRouter } from '../router';
-import { RoutingDecision } from '../types';
-import { StandaloneRouterClient } from '../router/standalone-router-client';
+import { SmartRouter } from '../router/index.js';
+import { RoutingDecision } from '../types/index.js';
+import { StandaloneRouterClient } from '../router/standalone-router-client.js';
 
 /** Format status message for /cogumi-smart-router */
 export function formatStatusMessage(

@@ -3,8 +3,8 @@
 import { join } from 'node:path';
 import { homedir } from 'node:os';
 import { existsSync, statSync } from 'node:fs';
-import { probeHardware } from '../hardware/probe';
-import { probeLocalRuntimes } from '../hardware/local-runtime';
+import { probeHardware } from '../hardware/probe.js';
+import { probeLocalRuntimes } from '../hardware/local-runtime.js';
 export async function collectPlacementPlan(options) {
     const encoderCacheFullPath = join(homedir(), options.encoderCachePath);
     const hardware = await probeHardware();

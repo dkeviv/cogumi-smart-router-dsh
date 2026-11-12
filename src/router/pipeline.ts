@@ -11,9 +11,9 @@ import {
   Tier,
   RequiredCapabilities,
   SmartRouterConfig,
-} from '../types';
+} from '../types/index.js';
 import { AhoCorasick } from 'aho-corasick';
-import { LLMRouterStage } from './llm-router-stage';
+import { LLMRouterStage } from './llm-router-stage.js';
 
 export interface PipelineStageConstructor {
   new (...args: any[]): PipelineStageHandler;

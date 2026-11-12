@@ -1,4 +1,4 @@
-import { Tier } from '../types';
+import { Tier } from '../types/index.js';
 export interface RoutingCluster {
     id: string;
     tierBias: Tier;

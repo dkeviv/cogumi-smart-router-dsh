@@ -1,7 +1,7 @@
 // src/embeddings/centroids.ts
 // Cluster centroids for routing
 
-import { ModelProfile, Tier } from '../types';
+import { ModelProfile, Tier } from '../types/index.js';
 
 export interface RoutingCluster {
   id: string;

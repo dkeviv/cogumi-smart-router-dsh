@@ -2,16 +2,16 @@
 // Slash command handlers for /cogumi-smart-router
 
 import { Context } from '@deepseek-ai/cordis';
-import { SmartRouter } from '../router';
-import { TelemetryStore } from '../telemetry';
-import { RoutingDecision, SmartRouterConfig } from '../types';
-import { formatStatusMessage, formatActiveModelIndicator } from './formatters';
-import { StandaloneRouterClient } from '../router/standalone-router-client';
-import { LLMRouterStage } from '../router/llm-router-stage';
-import { RouterError } from '../router/standalone-router-client';
+import { SmartRouter } from '../router/index.js';
+import { TelemetryStore } from '../telemetry/index.js';
+import { RoutingDecision, SmartRouterConfig } from '../types/index.js';
+import { formatStatusMessage, formatActiveModelIndicator } from './formatters.js';
+import { StandaloneRouterClient } from '../router/standalone-router-client.js';
+import { LLMRouterStage } from '../router/llm-router-stage.js';
+import { RouterError } from '../router/standalone-router-client.js';
 
 // Extend SmartRouter with getLastDecision method (module augmentation)
-declare module '../router' {
+declare module '../router/index.js' {
   interface SmartRouter {
     getLastDecision(): RoutingDecision | undefined;
   }

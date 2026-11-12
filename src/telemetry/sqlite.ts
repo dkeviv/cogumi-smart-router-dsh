@@ -5,7 +5,7 @@ import {
   TelemetryEvent,
   SessionStatsSnapshot,
   PlacementPlanReport,
-} from '../types';
+} from '../types/index.js';
 import initSqlJs, { Database } from 'sql.js';
 import { join } from 'node:path';
 import { homedir } from 'node:os';

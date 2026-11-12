@@ -1,4 +1,4 @@
-import { ModelProfile, Tier, HardwareInfo, SmartRouterConfig } from '../types';
+import { ModelProfile, Tier, HardwareInfo, SmartRouterConfig } from '../types/index.js';
 export interface FleetConfig {
     modelsPath?: string;
     hardwareInfo: HardwareInfo;

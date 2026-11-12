@@ -1,7 +1,7 @@
 // src/telemetry/aggregator.ts
 // Telemetry aggregation for stats command
 
-import { TelemetryEvent, SessionStatsSnapshot, ModelProfile, PriceCatalog } from '../types';
+import { TelemetryEvent, SessionStatsSnapshot, ModelProfile, PriceCatalog } from '../types/index.js';
 
 export function aggregateSessionStatsFromFleet(
   entries: readonly TelemetryEvent[],

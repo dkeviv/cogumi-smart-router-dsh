@@ -1,7 +1,7 @@
 // src/router/pipeline.ts
 // Simplified routing pipeline for cogumi-smart-router
 // Stages: Hardware Probe → Loop Escalation → Turn Envelope → Context-Fit Gate → Session Pin → LLM Router (DEFAULT)
-import { LLMRouterStage } from './llm-router-stage';
+import { LLMRouterStage } from './llm-router-stage.js';
 export class RouterPipeline {
     stages = [];
     constructor(stages) {

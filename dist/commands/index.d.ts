@@ -1,10 +1,10 @@
 import { Context } from '@deepseek-ai/cordis';
-import { SmartRouter } from '../router';
-import { TelemetryStore } from '../telemetry';
-import { RoutingDecision, SmartRouterConfig } from '../types';
-import { StandaloneRouterClient } from '../router/standalone-router-client';
-import { LLMRouterStage } from '../router/llm-router-stage';
-declare module '../router' {
+import { SmartRouter } from '../router/index.js';
+import { TelemetryStore } from '../telemetry/index.js';
+import { RoutingDecision, SmartRouterConfig } from '../types/index.js';
+import { StandaloneRouterClient } from '../router/standalone-router-client.js';
+import { LLMRouterStage } from '../router/llm-router-stage.js';
+declare module '../router/index.js' {
     interface SmartRouter {
         getLastDecision(): RoutingDecision | undefined;
     }

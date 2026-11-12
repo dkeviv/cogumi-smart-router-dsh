@@ -6,8 +6,8 @@ import {
   Tier,
   HardwareInfo,
   SmartRouterConfig,
-} from '../types';
-import { probeLocalRuntimes, createLocalModelProfiles } from '../hardware/local-runtime';
+} from '../types/index.js';
+import { probeLocalRuntimes, createLocalModelProfiles } from '../hardware/local-runtime.js';
 import { readFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';

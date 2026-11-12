@@ -1,13 +1,13 @@
 // src/index.ts
 // Main plugin entry point for DSH Cordis
-import { createSmartRouter, SmartRouter } from './router';
-import { createTelemetryStore } from './telemetry';
-import { registerSmartRouterCommand, injectActiveModelIndicator } from './commands';
-import { probeHardware } from './hardware/probe';
-import { fleetManager } from './fleet';
-import { LLMRouterStage } from './router/llm-router-stage';
-import { StandaloneRouterClient } from './router/standalone-router-client';
-import { RouterError } from './router/standalone-router-client';
+import { createSmartRouter, SmartRouter } from './router/index.js';
+import { createTelemetryStore } from './telemetry/index.js';
+import { registerSmartRouterCommand, injectActiveModelIndicator } from './commands/index.js';
+import { probeHardware } from './hardware/probe.js';
+import { fleetManager } from './fleet/index.js';
+import { LLMRouterStage } from './router/llm-router-stage.js';
+import { StandaloneRouterClient } from './router/standalone-router-client.js';
+import { RouterError } from './router/standalone-router-client.js';
 export const name = 'cogumi-smart-router';
 export function apply(ctx, config) {
     // Get required services
@@ -218,5 +218,5 @@ function hookAgentLoop(ctx, router) {
 }
 // Export types and utilities for external use
 export { SmartRouter, createSmartRouter, probeHardware, fleetManager, LLMRouterStage, StandaloneRouterClient, RouterError, };
-export { TelemetryStore, createTelemetryStore, } from './telemetry';
+export { TelemetryStore, createTelemetryStore, } from './telemetry/index.js';
 //# sourceMappingURL=index.js.map

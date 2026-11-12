@@ -1,12 +1,12 @@
 // src/utils/placement-plan.ts
 // Read-only local placement report for /smart-router plan and /smart-router doctor
 
-import { PlacementPlanReport } from '../types';
+import { PlacementPlanReport } from '../types/index.js';
 import { join } from 'node:path';
 import { homedir } from 'node:os';
 import { existsSync, statSync } from 'node:fs';
-import { probeHardware } from '../hardware/probe';
-import { probeLocalRuntimes } from '../hardware/local-runtime';
+import { probeHardware } from '../hardware/probe.js';
+import { probeLocalRuntimes } from '../hardware/local-runtime.js';
 
 export async function collectPlacementPlan(options: {
   encoderCachePath: string;

@@ -1,6 +1,6 @@
 // src/commands/index.ts
 // Slash command handlers for /cogumi-smart-router
-import { formatStatusMessage, formatActiveModelIndicator } from './formatters';
+import { formatStatusMessage, formatActiveModelIndicator } from './formatters.js';
 // Simple model name -> HuggingFace model ID mapping
 const ROUTER_MODEL_MAP = {
     'qwen3-0.6b': 'dkeviv/Qwen3-0.6B-DQ-ONNX-bucket',

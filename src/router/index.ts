@@ -18,13 +18,13 @@ import {
   TelemetryEvent,
   ContextCompactionResult,
   Message,
-} from '../types';
+} from '../types/index.js';
 
-import { fleetManager } from '../fleet';
-import { probeHardware } from '../hardware/probe';
-import { TelemetryStore } from '../telemetry';
-import { createPipelineStages, RouterPipeline } from './pipeline';
-import { RouterError } from './standalone-router-client';
+import { fleetManager } from '../fleet/index.js';
+import { probeHardware } from '../hardware/probe.js';
+import { TelemetryStore } from '../telemetry/index.js';
+import { createPipelineStages, RouterPipeline } from './pipeline.js';
+import { RouterError } from './standalone-router-client.js';
 
 export interface SmartRouterDeps {
   ctx: Context;

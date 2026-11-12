@@ -1,7 +1,7 @@
 // src/hardware/local-runtime.ts
 // LM Studio / Ollama local runtime probing
 
-import { ModelProfile, Tier, LocalModelInfo } from '../types';
+import { ModelProfile, Tier, LocalModelInfo } from '../types/index.js';
 
 export async function probeLocalRuntimes(): Promise<LocalModelInfo[]> {
   const results: LocalModelInfo[] = [];

@@ -3,7 +3,7 @@
 // Runs configured Qwen3 model locally via WASM (no Chrome extension needed)
 
 import { AutoTokenizer, env, Qwen2ForCausalLM, TextStreamer } from '@huggingface/transformers';
-import { SmartRouterConfig, RoutingRequest, RoutingDecision, ModelProfile, Tier, PipelineContext } from '../types';
+import { SmartRouterConfig, RoutingRequest, RoutingDecision, ModelProfile, Tier, PipelineContext } from '../types/index.js';
 
 // Configure transformers.js for Node.js (WASM backend)
 env.allowLocalModels = false;

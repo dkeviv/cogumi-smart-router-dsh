@@ -1,4 +1,4 @@
-import { PipelineContext, PipelineStage, PipelineStageHandler, RoutingDecision, ModelProfile, SmartRouterConfig } from '../types';
+import { PipelineContext, PipelineStage, PipelineStageHandler, RoutingDecision, ModelProfile, SmartRouterConfig } from '../types/index.js';
 export interface PipelineStageConstructor {
     new (...args: any[]): PipelineStageHandler;
 }

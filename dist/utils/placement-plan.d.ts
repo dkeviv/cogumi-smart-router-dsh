@@ -1,4 +1,4 @@
-import { PlacementPlanReport } from '../types';
+import { PlacementPlanReport } from '../types/index.js';
 export declare function collectPlacementPlan(options: {
     encoderCachePath: string;
     diskPath: string;

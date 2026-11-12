@@ -1,5 +1,5 @@
-export { HyDRAEmbedder, createHyDRAEmbedder } from './onnx';
-export type { EmbeddingResult } from './onnx';
-export { loadCentroids, saveCentroids, computeCentroids, DEFAULT_CLUSTERS } from './centroids';
-export type { RoutingCluster, CentroidData } from './centroids';
+export { HyDRAEmbedder, createHyDRAEmbedder } from './onnx.js';
+export type { EmbeddingResult } from './onnx.js';
+export { loadCentroids, saveCentroids, computeCentroids, DEFAULT_CLUSTERS } from './centroids.js';
+export type { RoutingCluster, CentroidData } from './centroids.js';
 //# sourceMappingURL=index.d.ts.map

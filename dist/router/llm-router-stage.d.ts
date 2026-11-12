@@ -1,5 +1,5 @@
-import { PipelineContext, PipelineStage, PipelineStageHandler, RoutingDecision, SmartRouterConfig } from '../types';
-import { StandaloneRouterClient } from './standalone-router-client';
+import { PipelineContext, PipelineStage, PipelineStageHandler, RoutingDecision, SmartRouterConfig } from '../types/index.js';
+import { StandaloneRouterClient } from './standalone-router-client.js';
 export declare class LLMRouterStage implements PipelineStageHandler {
     private config;
     private telemetryStore;
